@@ -67,7 +67,6 @@ const EditableText = ({ isAdminMode, value, onChange, className, placeholder, mu
     return <span className={className} style={{whiteSpace: 'pre-wrap', ...style}}>{safeValue}</span>;
   }
   
-  // Tinh chỉnh input admin: border mỏng hơn, padding gọn hơn
   const inputClass = `bg-white text-gray-900 border border-orange-400 rounded px-2 py-1 outline-none shadow-sm w-full text-base block focus:ring-1 focus:ring-orange-200 transition-all ${className}`;
   
   if (multiline) {
@@ -94,145 +93,6 @@ const EditableText = ({ isAdminMode, value, onChange, className, placeholder, mu
       onClick={(e) => e.stopPropagation()}
     />
   );
-};
-
-// --- COMPONENT CATEGORY MANAGER MODAL ---
-const CategoryManagerModal = ({ categories, onReorder, onRename, onClose }) => {
-    const [editingIndex, setEditingIndex] = useState(-1);
-    const [editValue, setEditValue] = useState("");
-
-    const startEdit = (index, currentName) => {
-        setEditingIndex(index);
-        setEditValue(currentName);
-    };
-
-    const saveEdit = (index) => {
-        if (editValue.trim()) {
-            onRename(categories[index], editValue.trim());
-        }
-        setEditingIndex(-1);
-    };
-
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-zoom-in" onClick={e => e.stopPropagation()}>
-                <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
-                    <h3 className="font-bold flex items-center gap-2"><List size={20}/> Sắp xếp & Sửa tên nhóm</h3>
-                    <button onClick={onClose}><X size={20}/></button>
-                </div>
-                <div className="p-4 max-h-[60vh] overflow-y-auto">
-                    <p className="text-sm text-gray-500 mb-3 italic">Bấm mũi tên để sắp xếp, bấm bút chì để đổi tên.</p>
-                    <div className="space-y-2">
-                        {categories.map((cat, idx) => (
-                            <div key={idx} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
-                                {editingIndex === idx ? (
-                                    <div className="flex-1 flex gap-2 mr-2">
-                                        <input 
-                                            autoFocus
-                                            className="border border-orange-400 rounded p-1 flex-1 text-base outline-none"
-                                            value={editValue}
-                                            onChange={e => setEditValue(e.target.value)}
-                                            onKeyDown={e => e.key === 'Enter' && saveEdit(idx)}
-                                        />
-                                        <button onClick={() => saveEdit(idx)} className="bg-green-600 text-white px-2 rounded hover:bg-green-700"><CheckCircle size={18}/></button>
-                                    </div>
-                                ) : (
-                                    <span className="font-bold text-slate-700 flex-1 text-base">{cat}</span>
-                                )}
-                                
-                                <div className="flex gap-1">
-                                    {editingIndex !== idx && (
-                                        <button onClick={() => startEdit(idx, cat)} className="p-2 text-blue-600 hover:bg-blue-100 rounded" title="Đổi tên"><Edit3 size={18}/></button>
-                                    )}
-                                    <button onClick={() => onReorder(idx, 'up')} disabled={idx === 0} className={`p-2 rounded ${idx === 0 ? 'text-gray-300' : 'text-slate-600 hover:bg-slate-200'}`}><ArrowUp size={18}/></button>
-                                    <button onClick={() => onReorder(idx, 'down')} disabled={idx === categories.length - 1} className={`p-2 rounded ${idx === categories.length - 1 ? 'text-gray-300' : 'text-slate-600 hover:bg-slate-200'}`}><ArrowDown size={18}/></button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    {categories.length === 0 && <p className="text-center text-gray-400 py-4">Chưa có nhóm nào.</p>}
-                </div>
-                <div className="p-3 border-t bg-gray-50 text-right">
-                    <button onClick={onClose} className="bg-slate-900 text-white px-6 py-2 rounded-lg text-base font-bold">Xong</button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// --- COMPONENT TAG MANAGER (QUẢN LÝ TAG CHO ITEM) ---
-const TagManagerModal = ({ item, allTags, onClose, onUpdateTags }) => {
-    const [newTag, setNewTag] = useState('');
-    const currentTags = item.tags || [];
-
-    const handleAdd = (tagToAdd) => {
-        const cleanTag = tagToAdd.trim();
-        if (cleanTag && !currentTags.includes(cleanTag)) {
-            onUpdateTags([...currentTags, cleanTag]);
-        }
-        setNewTag('');
-    };
-
-    const handleRemove = (tagToRemove) => {
-        onUpdateTags(currentTags.filter(t => t !== tagToRemove));
-    };
-
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-zoom-in" onClick={(e) => e.stopPropagation()}>
-                <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
-                    <h3 className="font-bold flex items-center gap-2"><Tag size={18}/> Gắn Thẻ/Nhóm</h3>
-                    <button onClick={onClose}><X size={20}/></button>
-                </div>
-                <div className="p-4">
-                    {/* Danh sách tag hiện tại */}
-                    <div className="mb-4">
-                        <p className="text-xs text-gray-500 mb-2 font-bold uppercase">Đang gắn:</p>
-                        <div className="flex flex-wrap gap-2">
-                            {currentTags.length > 0 ? currentTags.map(tag => (
-                                <span key={tag} className="bg-orange-100 text-orange-800 px-2 py-1 rounded-md text-sm font-bold flex items-center gap-1">
-                                    {tag}
-                                    <button onClick={() => handleRemove(tag)} className="hover:text-red-500"><X size={14}/></button>
-                                </span>
-                            )) : <span className="text-sm text-gray-400 italic">Chưa có thẻ nào</span>}
-                        </div>
-                    </div>
-
-                    {/* Input thêm mới */}
-                    <div className="flex gap-2 mb-4">
-                        <input 
-                            type="text" 
-                            className="border p-2 rounded flex-1 text-sm" 
-                            placeholder="Nhập thẻ mới..." 
-                            value={newTag}
-                            onChange={(e) => setNewTag(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleAdd(newTag)}
-                        />
-                        <button onClick={() => handleAdd(newTag)} className="bg-green-600 text-white px-3 rounded text-sm font-bold">Thêm</button>
-                    </div>
-
-                    {/* Gợi ý tag cũ */}
-                    <div>
-                        <p className="text-xs text-gray-500 mb-2 font-bold uppercase">Chọn nhanh từ thẻ cũ:</p>
-                        <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
-                            {allTags.filter(t => !currentTags.includes(t) && t !== 'Tất cả').map(tag => (
-                                <button 
-                                    key={tag} 
-                                    onClick={() => handleAdd(tag)}
-                                    className="bg-gray-100 text-gray-700 px-2 py-1 rounded-md text-sm hover:bg-gray-200 border border-gray-200"
-                                >
-                                    + {tag}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-                <div className="p-3 border-t bg-gray-50 text-right">
-                    <button onClick={onClose} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold">Xong</button>
-                </div>
-            </div>
-        </div>
-    );
 };
 
 // --- COMPONENT ITEM DETAIL MODAL ---
@@ -264,18 +124,15 @@ const ItemDetailModal = ({ item, onClose }) => {
                 </div>
                 <div className="p-6 overflow-y-auto">
                     <h3 className="text-2xl font-bold text-slate-900 mb-3 leading-tight">{item.name}</h3>
-                    
                     {(!item.variants || item.variants.length === 0) && (
                         <div className="text-3xl font-extrabold text-orange-600 mb-6">{item.price}</div>
                     )}
-
                     {item.desc && item.desc.trim() !== "" && (
                         <div className="mb-6">
                             <h4 className="text-sm font-bold text-gray-500 uppercase mb-2">Thông tin chi tiết</h4>
                             <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap">{item.desc}</p>
                         </div>
                     )}
-
                     {item.variants && item.variants.length > 0 && (
                         <div className="mb-6">
                              <h4 className="text-sm font-bold text-gray-500 uppercase mb-3">Bảng giá</h4>
@@ -289,7 +146,6 @@ const ItemDetailModal = ({ item, onClose }) => {
                              </div>
                         </div>
                     )}
-                    
                     {item.stock !== undefined && (
                         <div className={`text-lg font-bold mb-6 flex items-center justify-center gap-2 p-3 rounded-xl border ${item.stock ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
                             {item.stock ? <CheckCircle size={24}/> : <AlertCircle size={24}/>}
@@ -297,6 +153,57 @@ const ItemDetailModal = ({ item, onClose }) => {
                         </div>
                     )}
                     <button onClick={onClose} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-lg hover:bg-slate-800 active:scale-95 transition shadow-lg">Đóng</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- COMPONENT TAG MANAGER ---
+const TagManagerModal = ({ item, allTags, onClose, onUpdateTags }) => {
+    const [newTag, setNewTag] = useState('');
+    const currentTags = item.tags || [];
+    const handleAdd = (tagToAdd) => {
+        const cleanTag = tagToAdd.trim();
+        if (cleanTag && !currentTags.includes(cleanTag)) { onUpdateTags([...currentTags, cleanTag]); }
+        setNewTag('');
+    };
+    const handleRemove = (tagToRemove) => { onUpdateTags(currentTags.filter(t => t !== tagToRemove)); };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-zoom-in" onClick={(e) => e.stopPropagation()}>
+                <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
+                    <h3 className="font-bold flex items-center gap-2"><Tag size={18}/> Gắn Thẻ/Nhóm</h3>
+                    <button onClick={onClose}><X size={20}/></button>
+                </div>
+                <div className="p-4">
+                    <div className="mb-4">
+                        <p className="text-xs text-gray-500 mb-2 font-bold uppercase">Đang gắn:</p>
+                        <div className="flex flex-wrap gap-2">
+                            {currentTags.length > 0 ? currentTags.map(tag => (
+                                <span key={tag} className="bg-orange-100 text-orange-800 px-2 py-1 rounded-md text-sm font-bold flex items-center gap-1">
+                                    {tag}
+                                    <button onClick={() => handleRemove(tag)} className="hover:text-red-500"><X size={14}/></button>
+                                </span>
+                            )) : <span className="text-sm text-gray-400 italic">Chưa có thẻ nào</span>}
+                        </div>
+                    </div>
+                    <div className="flex gap-2 mb-4">
+                        <input type="text" className="border p-2 rounded flex-1 text-sm" placeholder="Nhập thẻ mới..." value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAdd(newTag)}/>
+                        <button onClick={() => handleAdd(newTag)} className="bg-green-600 text-white px-3 rounded text-sm font-bold">Thêm</button>
+                    </div>
+                    <div>
+                        <p className="text-xs text-gray-500 mb-2 font-bold uppercase">Chọn nhanh từ thẻ cũ:</p>
+                        <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+                            {allTags.filter(t => !currentTags.includes(t) && t !== 'Tất cả').map(tag => (
+                                <button key={tag} onClick={() => handleAdd(tag)} className="bg-gray-100 text-gray-700 px-2 py-1 rounded-md text-sm hover:bg-gray-200 border border-gray-200">+ {tag}</button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+                <div className="p-3 border-t bg-gray-50 text-right">
+                    <button onClick={onClose} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold">Xong</button>
                 </div>
             </div>
         </div>
@@ -314,11 +221,7 @@ const OnePageMechanic = () => {
   const [authStatus, setAuthStatus] = useState('checking');
   const [permissionError, setPermissionError] = useState(false);
   const [viewItem, setViewItem] = useState(null);
-  
-  // State quản lý tag
   const [editingTagItem, setEditingTagItem] = useState(null);
-  const [showCategoryManager, setShowCategoryManager] = useState(false); // Modal quản lý danh mục
-  const [categoriesOrder, setCategoriesOrder] = useState([]); // Thứ tự danh mục
 
   const [activeTab, setActiveTab] = useState('services');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -357,7 +260,6 @@ const OnePageMechanic = () => {
   const [parts, setParts] = useState(defaultParts);
   const [selectedTag, setSelectedTag] = useState('Tất cả');
 
-  // --- FIREBASE AUTH & SYNC ---
   useEffect(() => { const initAuth = async () => { try { await signInAnonymously(auth); setAuthStatus('logged-in'); } catch (error) { console.error(error); setAuthStatus('error'); } }; initAuth(); const u = onAuthStateChanged(auth, setUser); return () => u(); }, []);
   
   useEffect(() => {
@@ -365,16 +267,13 @@ const OnePageMechanic = () => {
     const paths = {
         shop: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'),
         services: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'),
-        parts: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'),
-        categories: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list')
+        parts: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list')
     };
     const handleErr = (error) => { if (error.code === 'permission-denied') setPermissionError(true); };
     const uS = onSnapshot(paths.shop, (s) => { if(s.exists()) setShopInfo(prev => ({...defaultShopInfo, ...prev, ...s.data()})); }, handleErr);
     const uSv = onSnapshot(paths.services, (s) => { if(s.exists()) { const d = s.data().items||[]; setServices(d.map(i => ({...i, images: i.images || (i.iconUrl ? [i.iconUrl] : []), variants: i.variants || []}))); } }, handleErr);
     const uP = onSnapshot(paths.parts, (s) => { if(s.exists()) { const d = s.data().items||[]; setParts(d.map(i => ({...i, images: i.images || (i.imageFile ? [i.imageFile] : []), variants: i.variants || [], desc: i.desc || ""}))); } setIsDataLoaded(true); }, handleErr);
-    const uC = onSnapshot(paths.categories, (s) => { if(s.exists()) setCategoriesOrder(s.data().items||[]); }, handleErr);
-    
-    return () => { uS(); uSv(); uP(); uC(); };
+    return () => { uS(); uSv(); uP(); };
   }, [user]);
 
   const forceSaveAll = async () => {
@@ -385,7 +284,6 @@ const OnePageMechanic = () => {
               setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'), shopInfo),
               setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'), { items: services }),
               setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'), { items: parts }),
-              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list'), { items: categoriesOrder })
           ]);
           setSaveStatus('idle'); setIsAdminMode(false); alert("✅ Đã lưu dữ liệu!");
       } catch (error) { setSaveStatus('error'); alert(`❌ Lỗi lưu: ${error.message}`); }
@@ -394,36 +292,11 @@ const OnePageMechanic = () => {
   useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'), shopInfo), 2000); return () => clearTimeout(t); }, [shopInfo, isDataLoaded]);
   useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'), { items: services }), 2000); return () => clearTimeout(t); }, [services, isDataLoaded]);
   useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'), { items: parts }), 2000); return () => clearTimeout(t); }, [parts, isDataLoaded]);
-  useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list'), { items: categoriesOrder }), 2000); return () => clearTimeout(t); }, [categoriesOrder, isDataLoaded]);
 
   useEffect(() => { document.title = shopInfo.name || "Tiệm Sửa Xe"; }, [shopInfo.name]);
 
-  const getCategories = (items) => {
-      const usedTags = new Set();
-      items.forEach(item => {
-          if (item.tags && item.tags.length > 0) {
-              usedTags.add(item.tags[0]); 
-          } else {
-              usedTags.add("Khác");
-          }
-      });
-      const usedTagsArray = Array.from(usedTags);
-      return usedTagsArray.sort((a, b) => {
-          const idxA = categoriesOrder.indexOf(a);
-          const idxB = categoriesOrder.indexOf(b);
-          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-          if (idxA !== -1) return -1;
-          if (idxB !== -1) return 1;
-          return a.localeCompare(b);
-      });
-  };
-
-  const getAllUniqueTags = () => {
-      const all = new Set();
-      parts.forEach(p => p.tags && p.tags.forEach(t => all.add(t)));
-      return Array.from(all);
-  };
-
+  const getCategories = (items) => { const cats = new Set(); items.forEach(item => { if (item.tags && item.tags.length > 0) { cats.add(item.tags[0]); } else { cats.add("Khác"); } }); return Array.from(cats).sort(); };
+  const getAllUniqueTags = () => { const all = new Set(); parts.forEach(p => p.tags && p.tags.forEach(t => all.add(t))); return Array.from(all); };
   const partCategories = getCategories(parts);
 
   const handleImageUpload = (e, list, setList, itemId) => {
@@ -440,6 +313,8 @@ const OnePageMechanic = () => {
             const compressed = canvas.toDataURL('image/jpeg', 0.8);
             const updated = list.map(i => i.id === itemId ? { ...i, images: [compressed] } : i);
             setList(updated);
+            // Quan trọng: Reset value để cho phép chọn lại cùng 1 file
+            e.target.value = '';
         };
         img.src = event.target.result;
       };
@@ -459,6 +334,29 @@ const OnePageMechanic = () => {
                   if(w>h){if(w>MAX){h*=MAX/w;w=MAX}}else{if(h>MAX){w*=MAX/h;h=MAX}}
                   canvas.width = w; canvas.height = h; ctx.drawImage(img, 0, 0, w, h);
                   setShopInfo(p => ({...p, logoUrl: canvas.toDataURL('image/jpeg', 0.8)}));
+                  // Reset input
+                  e.target.value = '';
+              }
+              img.src = ev.target.result;
+          }
+          reader.readAsDataURL(file);
+      }
+  }
+
+  // Hàm xử lý riêng cho QR (object đơn)
+  const handleQRUpload = (e) => {
+      const file = e.target.files[0];
+      if(file) {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+              const img = new Image();
+              img.onload = () => {
+                  const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
+                  const MAX = 500; let w = img.width; let h = img.height;
+                  if(w>h){if(w>MAX){h*=MAX/w;w=MAX}}else{if(h>MAX){w*=MAX/h;h=MAX}}
+                  canvas.width = w; canvas.height = h; ctx.drawImage(img, 0, 0, w, h);
+                  setShopInfo(p => ({...p, qrCodeUrl: canvas.toDataURL('image/jpeg', 0.8)}));
+                  e.target.value = '';
               }
               img.src = ev.target.result;
           }
@@ -476,26 +374,8 @@ const OnePageMechanic = () => {
       const list = type === 'parts' ? parts : services;
       const updatedList = list.map(item => item.id === id ? { ...item, tags: newTags } : item);
       setList(updatedList);
-      newTags.forEach(t => { if (!categoriesOrder.includes(t)) { setCategoriesOrder(prev => [...prev, t]); } });
   };
 
-  const handleRenameCategory = (oldName, newName) => {
-      if (!newName || newName === oldName) return;
-      const newParts = parts.map(p => { if (p.tags && p.tags.includes(oldName)) { return { ...p, tags: p.tags.map(t => t === oldName ? newName : t) }; } return p; });
-      setParts(newParts);
-      const newOrder = categoriesOrder.map(c => c === oldName ? newName : c);
-      setCategoriesOrder(newOrder);
-  };
-
-  const handleReorderCategories = (index, direction) => {
-      const newOrder = [...partCategories]; 
-      if (direction === 'up' && index > 0) { [newOrder[index], newOrder[index - 1]] = [newOrder[index - 1], newOrder[index]]; } 
-      else if (direction === 'down' && index < newOrder.length - 1) { [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]]; }
-      const mergedOrder = Array.from(new Set([...newOrder, ...categoriesOrder]));
-      setCategoriesOrder(mergedOrder);
-  };
-
-  const deleteBooking = (id) => { if(window.confirm("Xóa?")) setBookings(bookings.filter(b => b.id !== id)); };
   const createCalendarReminder = () => { window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent("Bảo dưỡng xe tại " + shopInfo.name)}`, '_blank'); };
   const addNewService = () => setServices([...services, { id: Date.now(), name: "Dịch vụ mới", price: "0đ", images: [], desc: "Mô tả...", variants: [] }]);
   const deleteService = (id) => { if(window.confirm("Xóa?")) setServices(services.filter(s => s.id !== id)); };
@@ -522,12 +402,12 @@ const OnePageMechanic = () => {
             </div>
         )}
         
-        {/* Cột ảnh bên trái - TỐI ƯU SIZE: w-24 (mobile) -> w-28 (desktop) */}
-        <div className="w-24 h-24 md:w-28 md:h-28 bg-white shrink-0 flex items-center justify-center relative border border-gray-200 rounded-lg group/icon overflow-hidden">
+        {/* Cột ảnh bên trái - NHỎ GỌN DẠNG ICON */}
+        <div className="w-24 h-24 bg-white shrink-0 flex items-center justify-center relative border border-gray-200 rounded-lg group/icon overflow-hidden">
                 {(item.images && item.images.length > 0) ? (
                     <img src={item.images[0]} alt="icon" className="w-full h-full object-cover" />
                 ) : (
-                    <Wrench className="text-gray-300" size={40} />
+                    <Wrench className="text-gray-300" size={32} />
                 )}
                 
                 {isAdminMode && (
@@ -541,20 +421,19 @@ const OnePageMechanic = () => {
         {/* Cột nội dung bên phải */}
         <div className="flex-1 flex flex-col justify-between py-0.5">
             <div>
-                {/* TÊN: Bold, text-lg */}
-                <h4 className="font-bold text-slate-800 text-lg md:text-xl leading-tight mb-1 pr-6">
+                <h4 className="font-bold text-slate-800 text-lg leading-tight mb-1 pr-6">
                     <EditableText isAdminMode={isAdminMode} value={item.name} onChange={(val) => { const newList = [...list]; newList[idx].name = val; setList(newList); }} className="font-bold w-full"/>
                 </h4>
                 
                 {/* GIÁ THÔNG MINH */}
                 {!hasVariants && (
-                    <div className="text-orange-600 font-extrabold text-xl md:text-2xl mb-1">
+                    <div className="text-orange-600 font-extrabold text-xl mb-1">
                         <EditableText isAdminMode={isAdminMode} value={item.price} onChange={(val) => { const newList = [...list]; newList[idx].price = val; setList(newList); }}/>
                     </div>
                 )}
 
                 {singleVariant && (
-                    <div className="text-orange-600 font-extrabold text-xl md:text-2xl mb-1 flex flex-wrap items-center gap-1">
+                    <div className="text-orange-600 font-extrabold text-xl mb-1 flex flex-wrap items-center gap-1">
                         {item.variants[0].price} 
                         <span className="text-xs text-gray-500 font-normal">({item.variants[0].name})</span>
                     </div>
@@ -564,9 +443,9 @@ const OnePageMechanic = () => {
                     <div className="text-sm text-gray-500 font-medium mb-1 bg-gray-100 px-2 py-0.5 rounded inline-block">{item.variants.length} loại giá</div>
                 )}
 
-                {/* MÔ TẢ: CHỈ HIỆN KHI CÓ */}
+                {/* Mô tả ngắn */}
                 <div className={`text-sm text-gray-500 mb-1 ${isAdminMode ? '' : 'line-clamp-2'}`}>
-                    <EditableText isAdminMode={isAdminMode} value={item.desc} onChange={(val) => { const newList = [...list]; newList[idx].desc = val; setList(newList); }} multiline={isAdminMode} placeholder="Mô tả/Giới thiệu sản phẩm..."/>
+                    <EditableText isAdminMode={isAdminMode} value={item.desc} onChange={(val) => { const newList = [...list]; newList[idx].desc = val; setList(newList); }} multiline={isAdminMode} placeholder="Mô tả..."/>
                 </div>
             </div>
 
@@ -611,26 +490,14 @@ const OnePageMechanic = () => {
   return (
     <div className={`min-h-screen bg-gray-50 text-gray-900 font-sans pb-24 md:pb-0 relative text-base md:text-lg`}>
       
-      {/* MODAL & ALERTS */}
       <ItemDetailModal item={viewItem} onClose={() => setViewItem(null)} />
       
-      {/* MODAL QUẢN LÝ TAG */}
       {editingTagItem && (
           <TagManagerModal 
             item={editingTagItem} 
             allTags={getAllUniqueTags()} 
             onClose={() => setEditingTagItem(null)} 
             onUpdateTags={updateTagsForItem}
-          />
-      )}
-      
-      {/* MODAL QUẢN LÝ DANH MỤC */}
-      {showCategoryManager && (
-          <CategoryManagerModal 
-            categories={partCategories}
-            onReorder={handleReorderCategories}
-            onRename={handleRenameCategory}
-            onClose={() => setShowCategoryManager(false)}
           />
       )}
 
@@ -645,7 +512,7 @@ const OnePageMechanic = () => {
                 {shopInfo.logoUrl ? <img src={shopInfo.logoUrl} alt="Logo" className="h-16 w-auto object-contain cursor-pointer" onClick={() => setViewItem({ name: 'Logo Quán', images: [shopInfo.logoUrl] })}/> : <div className="h-16 w-16 bg-orange-500 rounded flex items-center justify-center text-xl font-bold">TM</div>}
                 {isAdminMode && <label className="absolute inset-0 flex items-center justify-center bg-black/50 cursor-pointer rounded opacity-0 group-hover:opacity-100 transition"><Upload size={24} className="text-white"/><input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload}/></label>}
             </div>
-            <div className="flex-1 ml-2 overflow-hidden">
+            <div className="flex-1 max-w-md ml-2 overflow-hidden">
                 <div className="font-bold text-xl leading-tight truncate"><EditableText isAdminMode={isAdminMode} value={shopInfo.name} onChange={(val) => setShopInfo({...shopInfo, name: val})} className="font-bold"/></div>
                 <div className="text-sm text-gray-400 hidden md:block truncate"><EditableText isAdminMode={isAdminMode} value={shopInfo.tagline} onChange={(val) => setShopInfo({...shopInfo, tagline: val})}/></div>
             </div>
@@ -661,16 +528,16 @@ const OnePageMechanic = () => {
 
       {/* ADMIN PANEL */}
       {isAdminMode && (
-        <div className="bg-white border-b-2 border-orange-500 p-4 shadow-md">
-            <div className="w-full px-4">
-                <div className="flex flex-col lg:flex-row justify-between items-center gap-4">
-                    <div className="flex items-center gap-3"><Settings className="text-orange-500" size={28}/><h2 className="font-bold text-xl">Quản trị viên</h2>
+        <div className="bg-white border-b-2 border-orange-500 p-2 shadow-md">
+            <div className="w-full px-2">
+                <div className="flex flex-col lg:flex-row justify-between items-center gap-2">
+                    <div className="flex items-center gap-2"><Settings className="text-orange-500" size={24}/><h2 className="font-bold text-lg">Quản trị viên</h2>
                         {saveStatus === 'saving' && <span className="text-sm text-orange-500 font-bold animate-pulse">Đang lưu...</span>}
                         {saveStatus === 'error' && <span className="text-sm text-red-500 font-bold">Lỗi lưu!</span>}
                     </div>
-                    <div className="flex items-center gap-3 bg-gray-100 p-2 rounded-xl w-full md:w-auto">
-                        <input type="text" placeholder="Mật khẩu mới..." className="bg-transparent text-base outline-none w-full md:w-48 p-2" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}/>
-                        <button onClick={handleChangePassword} className="bg-slate-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-slate-700 font-bold whitespace-nowrap">Đổi</button>
+                    <div className="flex items-center gap-2 bg-gray-100 p-2 rounded-xl w-full md:w-auto">
+                        <input type="text" placeholder="Mật khẩu mới..." className="bg-transparent text-base outline-none w-full md:w-48 p-1" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}/>
+                        <button onClick={handleChangePassword} className="bg-slate-900 text-white text-sm px-3 py-1.5 rounded-lg hover:bg-slate-700 font-bold whitespace-nowrap">Đổi</button>
                     </div>
                 </div>
             </div>
@@ -699,8 +566,8 @@ const OnePageMechanic = () => {
                 {isAdminMode && <button onClick={addNewService} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-green-700 shadow-md text-base"><Plus size={20}/> Thêm</button>}
             </div>
             
-            {/* GRID DỊCH VỤ: TĂNG MẬT ĐỘ CHO MOBILE & DESKTOP */}
-            <div className={isAdminMode ? "flex flex-col gap-3" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3"}>
+            {/* GRID DỊCH VỤ: TĂNG MẬT ĐỘ CHO MOBILE & DESKTOP - DÙNG GRID CHO CẢ ADMIN */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
               {services.map((service, idx) => renderItemCard(service, idx, services, setServices, 'services'))}
             </div>
           </div>
@@ -711,12 +578,7 @@ const OnePageMechanic = () => {
           <div className="animate-fade-in">
             <div className="flex justify-between items-center mb-8 border-l-8 border-orange-500 pl-4 py-1 bg-gray-50 rounded-r-lg">
                 <h3 className="text-2xl md:text-3xl font-black uppercase text-slate-800">Phụ Tùng</h3>
-                {isAdminMode && (
-                    <div className="flex gap-2">
-                        <button onClick={() => setShowCategoryManager(true)} className="bg-blue-600 text-white px-3 py-2 rounded-lg font-bold flex items-center gap-1 hover:bg-blue-700 shadow-md text-sm"><List size={18}/> Sắp xếp</button>
-                        <button onClick={addNewPart} className="bg-green-600 text-white px-3 py-2 rounded-lg font-bold flex items-center gap-1 hover:bg-green-700 shadow-md text-sm"><Plus size={18}/> Thêm</button>
-                    </div>
-                )}
+                {isAdminMode && <button onClick={addNewPart} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-green-700 shadow-md text-base"><Plus size={20}/> Thêm</button>}
             </div>
 
             {partCategories.map(category => {
@@ -729,8 +591,8 @@ const OnePageMechanic = () => {
                            <FolderOpen size={28} className="text-orange-500"/> {category}
                         </h4>
                         
-                        {/* GRID PHỤ TÙNG: TĂNG MẬT ĐỘ */}
-                        <div className={isAdminMode ? "flex flex-col gap-3" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"}>
+                        {/* GRID PHỤ TÙNG: DÙNG GRID CHO CẢ ADMIN */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                             {itemsInCategory.map((part) => {
                                 const idx = parts.findIndex(p => p.id === part.id);
                                 return renderItemCard(part, idx, parts, setParts, 'parts');
@@ -790,7 +652,7 @@ const OnePageMechanic = () => {
             <div className="mt-6 text-center relative">
                 <p className="text-xs text-gray-400 mb-2 uppercase font-black tracking-wider">Quét QR chuyển khoản</p>
                 {shopInfo.qrCodeUrl ? <img src={shopInfo.qrCodeUrl} alt="QR" className="w-32 h-32 mx-auto rounded-xl border-4 border-white shadow-lg"/> : <div className="w-32 h-32 mx-auto bg-gray-700 flex items-center justify-center text-sm text-gray-400 rounded-xl">Chưa có QR</div>}
-                {isAdminMode && <label className="absolute inset-0 bg-black/70 flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition rounded-xl"><span className="text-white font-bold bg-blue-600 px-4 py-2 rounded-lg shadow-lg text-sm">Đổi Ảnh QR</span><input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, shopInfo, setShopInfo, 'qrCodeUrl')}/></label>}
+                {isAdminMode && <label className="absolute inset-0 bg-black/70 flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition rounded-xl"><span className="text-white font-bold bg-blue-600 px-4 py-2 rounded-lg shadow-lg text-sm">Đổi Ảnh QR</span><input type="file" className="hidden" accept="image/*" onChange={handleQRUpload}/></label>}
             </div>
           </div>
         </div>
@@ -799,17 +661,17 @@ const OnePageMechanic = () => {
 
       {/* ADMIN FLOATING BAR */}
       {isAdminMode && (
-          <div className="fixed bottom-0 left-0 w-full bg-slate-900 text-white p-4 flex justify-between items-center z-50 border-t-4 border-orange-500 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+          <div className="fixed bottom-0 left-0 w-full bg-slate-900 text-white p-3 flex justify-between items-center z-50 border-t-4 border-orange-500 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
               <div className="flex items-center gap-3">
                   <div className="w-4 h-4 bg-green-500 rounded-full animate-pulse shadow-[0_0_15px_#22c55e]"></div>
-                  <span className="font-bold text-xl">CHẾ ĐỘ ADMIN</span>
+                  <span className="font-bold text-lg">CHẾ ĐỘ ADMIN</span>
               </div>
               <button 
                 onClick={forceSaveAll} 
-                className={`bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-3 text-lg shadow-xl transform active:scale-95 transition-all ${saveStatus === 'saving' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 text-base shadow-xl transform active:scale-95 transition-all ${saveStatus === 'saving' ? 'opacity-50 cursor-not-allowed' : ''}`}
                 disabled={saveStatus === 'saving'}
               >
-                  {saveStatus === 'saving' ? 'ĐANG LƯU...' : <><Save size={24}/> LƯU & THOÁT</>}
+                  {saveStatus === 'saving' ? 'ĐANG LƯU...' : <><Save size={20}/> LƯU & THOÁT</>}
               </button>
           </div>
       )}
