@@ -418,13 +418,14 @@ service cloud.firestore {
         <div className="w-full px-4 py-3 flex justify-between items-center">
           <div className="flex items-center space-x-3 flex-1">
             <div className="relative group shrink-0">
+                {/* LOGO: HIỂN THỊ TỰ NHIÊN, BỎ KHUNG, BỎ BO TRÒN */}
                 {shopInfo.logoUrl ? (
-                    <img src={shopInfo.logoUrl} alt="Logo" className="w-16 h-16 rounded object-cover border border-orange-500 bg-white"/>
+                    <img src={shopInfo.logoUrl} alt="Logo" className="h-16 w-auto object-contain"/>
                 ) : (
-                    <div className="w-16 h-16 bg-orange-500 rounded flex items-center justify-center text-xl font-bold">TM</div>
+                    <div className="h-16 w-16 bg-orange-500 rounded flex items-center justify-center text-xl font-bold">TM</div>
                 )}
                 {isAdminMode && (
-                    <label className="absolute inset-0 flex items-center justify-center bg-black/50 cursor-pointer rounded opacity-0 group-hover:opacity-100 transition">
+                    <label className="absolute inset-0 flex items-center justify-center bg-black/50 cursor-pointer opacity-0 group-hover:opacity-100 transition rounded">
                         <Upload size={18} className="text-white"/>
                         <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, shopInfo, setShopInfo, 'logoUrl')}/>
                     </label>
@@ -525,7 +526,7 @@ service cloud.firestore {
       {/* MAIN CONTENT AREA */}
       <main className="w-full px-4 md:px-8 lg:px-12 py-8">
         
-        {/* SERVICES TAB */}
+        {/* SERVICES TAB - ĐÃ SỬA THÀNH DẠNG CARD DỌC ĐỂ ẢNH TO */}
         {activeTab === 'services' && (
           <div className="animate-fade-in">
             <div className="flex justify-between items-center mb-6 border-l-4 border-orange-500 pl-3">
@@ -534,45 +535,51 @@ service cloud.firestore {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
               {services.map((service, idx) => (
-                <div key={service.id} className={`bg-white p-4 rounded-xl shadow-sm border ${isAdminMode ? 'border-dashed border-orange-300' : 'border-gray-100'} hover:shadow-md transition relative group flex flex-col h-full`}>
+                // Chuyển sang flex-col để ảnh nằm trên, nội dung nằm dưới
+                <div key={service.id} className={`bg-white p-0 rounded-xl shadow-sm border ${isAdminMode ? 'border-dashed border-orange-300' : 'border-gray-100'} hover:shadow-md transition relative group flex flex-col h-full overflow-hidden`}>
                   {isAdminMode && (
-                      <div className="absolute top-2 right-2 z-10 flex gap-1">
-                          <button onClick={() => moveItem(idx, 'up', services, setServices)} className="text-gray-400 hover:text-blue-600 p-1 bg-gray-50 rounded-full" title="Lên"><ArrowUp size={14}/></button>
-                          <button onClick={() => moveItem(idx, 'down', services, setServices)} className="text-gray-400 hover:text-blue-600 p-1 bg-gray-50 rounded-full" title="Xuống"><ArrowDown size={14}/></button>
-                          <button onClick={() => deleteService(service.id)} className="text-red-400 hover:text-red-600 p-1 bg-red-50 rounded-full" title="Xóa"><Trash2 size={14}/></button>
+                      <div className="absolute top-2 right-2 z-20 flex gap-1">
+                          <button onClick={() => moveItem(idx, 'up', services, setServices)} className="text-white hover:text-blue-300 p-1 bg-black/30 rounded-full backdrop-blur-sm" title="Lên"><ArrowUp size={14}/></button>
+                          <button onClick={() => moveItem(idx, 'down', services, setServices)} className="text-white hover:text-blue-300 p-1 bg-black/30 rounded-full backdrop-blur-sm" title="Xuống"><ArrowDown size={14}/></button>
+                          <button onClick={() => deleteService(service.id)} className="text-white hover:text-red-300 p-1 bg-red-500/80 rounded-full backdrop-blur-sm" title="Xóa"><Trash2 size={14}/></button>
                       </div>
                   )}
-                  <div className="flex gap-4 h-full">
-                    <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center text-2xl shrink-0 overflow-hidden relative group/icon self-start">
+                  
+                  {/* KHUNG ẢNH TO - ASPECT SQUARE (VUÔNG) */}
+                  <div className="w-full aspect-square bg-gray-100 flex items-center justify-center text-4xl overflow-hidden relative group/icon">
                        {service.iconUrl ? (
-                           <img src={service.iconUrl} alt="icon" className="w-full h-full object-cover" />
+                           <img src={service.iconUrl} alt="icon" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                        ) : (
-                           <Wrench className="text-gray-400" size={24} />
+                           <Wrench className="text-gray-400" size={48} />
                        )}
                        {isAdminMode && (
                            <label className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover/icon:opacity-100 cursor-pointer transition">
-                               <Upload className="text-white" size={14}/>
+                               <Upload className="text-white" size={24}/>
                                <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, services, setServices, 'iconUrl', service.id)}/>
                            </label>
                        )}
-                    </div>
+                  </div>
 
-                    <div className="flex-1 flex flex-col">
-                      <div className="flex justify-between items-start mb-1 pr-6">
-                        <h4 className="font-bold text-slate-800 w-full">
+                  {/* NỘI DUNG DỊCH VỤ */}
+                  <div className="p-4 flex flex-col flex-1">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-bold text-slate-800 w-full text-base">
                             <EditableText isAdminMode={isAdminMode} value={service.name} onChange={(val) => { const newS = [...services]; newS[idx].name = val; setServices(newS); }} className="font-bold w-full"/>
                         </h4>
                       </div>
+                      
                       {(!service.variants || service.variants.length === 0) && (
-                         <div className="text-orange-600 font-bold text-sm mb-1">
+                         <div className="text-orange-600 font-bold text-lg mb-2">
                             <EditableText isAdminMode={isAdminMode} value={service.price} onChange={(val) => { const newS = [...services]; newS[idx].price = val; setServices(newS); }}/>
                          </div>
                       )}
+
                       <div className="text-sm text-gray-500 mb-2 flex-grow">
                             <EditableText isAdminMode={isAdminMode} value={service.desc} onChange={(val) => { const newS = [...services]; newS[idx].desc = val; setServices(newS); }} multiline={true} className="w-full text-xs"/>
                       </div>
+
                       {(service.variants && service.variants.length > 0 || isAdminMode) && (
-                        <div className="mt-auto bg-gray-50 p-2 rounded text-sm space-y-2">
+                        <div className="mt-auto bg-gray-50 p-2 rounded text-sm space-y-2 border-t border-gray-100">
                             {service.variants?.map((variant, vIdx) => (
                                 <div key={vIdx} className="flex justify-between items-center border-b border-gray-200 last:border-0 pb-1 last:pb-0">
                                     <div className="flex-1 flex gap-2">
@@ -585,7 +592,6 @@ service cloud.firestore {
                             {isAdminMode && <button onClick={() => { const newS = [...services]; if(!newS[idx].variants) newS[idx].variants = []; newS[idx].variants.push({name: 'Loại mới', price: '0đ'}); setServices(newS); }} className="text-xs text-blue-600 flex items-center gap-1 mt-1 hover:underline">+ Thêm loại giá</button>}
                         </div>
                       )}
-                    </div>
                   </div>
                 </div>
               ))}
