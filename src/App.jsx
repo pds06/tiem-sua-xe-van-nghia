@@ -95,7 +95,7 @@ const EditableText = ({ isAdminMode, value, onChange, className, placeholder, mu
   );
 };
 
-// --- COMPONENT CATEGORY MANAGER MODAL (KHÔI PHỤC) ---
+// --- COMPONENT CATEGORY MANAGER MODAL ---
 const CategoryManagerModal = ({ categories, onReorder, onRename, onClose }) => {
     const [editingIndex, setEditingIndex] = useState(-1);
     const [editValue, setEditValue] = useState("");
@@ -153,6 +153,81 @@ const CategoryManagerModal = ({ categories, onReorder, onRename, onClose }) => {
                 </div>
                 <div className="p-3 border-t bg-gray-50 text-right">
                     <button onClick={onClose} className="bg-slate-900 text-white px-6 py-2 rounded-lg text-base font-bold">Xong</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- COMPONENT TAG MANAGER (QUẢN LÝ TAG CHO ITEM) ---
+const TagManagerModal = ({ item, allTags, onClose, onUpdateTags }) => {
+    const [newTag, setNewTag] = useState('');
+    const currentTags = item.tags || [];
+
+    const handleAdd = (tagToAdd) => {
+        const cleanTag = tagToAdd.trim();
+        if (cleanTag && !currentTags.includes(cleanTag)) {
+            onUpdateTags([...currentTags, cleanTag]);
+        }
+        setNewTag('');
+    };
+
+    const handleRemove = (tagToRemove) => {
+        onUpdateTags(currentTags.filter(t => t !== tagToRemove));
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-zoom-in" onClick={(e) => e.stopPropagation()}>
+                <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
+                    <h3 className="font-bold flex items-center gap-2"><Tag size={18}/> Gắn Thẻ/Nhóm</h3>
+                    <button onClick={onClose}><X size={20}/></button>
+                </div>
+                <div className="p-4">
+                    {/* Danh sách tag hiện tại */}
+                    <div className="mb-4">
+                        <p className="text-xs text-gray-500 mb-2 font-bold uppercase">Đang gắn:</p>
+                        <div className="flex flex-wrap gap-2">
+                            {currentTags.length > 0 ? currentTags.map(tag => (
+                                <span key={tag} className="bg-orange-100 text-orange-800 px-2 py-1 rounded-md text-sm font-bold flex items-center gap-1">
+                                    {tag}
+                                    <button onClick={() => handleRemove(tag)} className="hover:text-red-500"><X size={14}/></button>
+                                </span>
+                            )) : <span className="text-sm text-gray-400 italic">Chưa có thẻ nào</span>}
+                        </div>
+                    </div>
+
+                    {/* Input thêm mới */}
+                    <div className="flex gap-2 mb-4">
+                        <input 
+                            type="text" 
+                            className="border p-2 rounded flex-1 text-sm" 
+                            placeholder="Nhập thẻ mới..." 
+                            value={newTag}
+                            onChange={(e) => setNewTag(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAdd(newTag)}
+                        />
+                        <button onClick={() => handleAdd(newTag)} className="bg-green-600 text-white px-3 rounded text-sm font-bold">Thêm</button>
+                    </div>
+
+                    {/* Gợi ý tag cũ */}
+                    <div>
+                        <p className="text-xs text-gray-500 mb-2 font-bold uppercase">Chọn nhanh từ thẻ cũ:</p>
+                        <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+                            {allTags.filter(t => !currentTags.includes(t) && t !== 'Tất cả').map(tag => (
+                                <button 
+                                    key={tag} 
+                                    onClick={() => handleAdd(tag)}
+                                    className="bg-gray-100 text-gray-700 px-2 py-1 rounded-md text-sm hover:bg-gray-200 border border-gray-200"
+                                >
+                                    + {tag}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+                <div className="p-3 border-t bg-gray-50 text-right">
+                    <button onClick={onClose} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold">Xong</button>
                 </div>
             </div>
         </div>
@@ -227,57 +302,6 @@ const ItemDetailModal = ({ item, onClose }) => {
     );
 };
 
-// --- COMPONENT TAG MANAGER ---
-const TagManagerModal = ({ item, allTags, onClose, onUpdateTags }) => {
-    const [newTag, setNewTag] = useState('');
-    const currentTags = item.tags || [];
-    const handleAdd = (tagToAdd) => {
-        const cleanTag = tagToAdd.trim();
-        if (cleanTag && !currentTags.includes(cleanTag)) { onUpdateTags([...currentTags, cleanTag]); }
-        setNewTag('');
-    };
-    const handleRemove = (tagToRemove) => { onUpdateTags(currentTags.filter(t => t !== tagToRemove)); };
-
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-zoom-in" onClick={(e) => e.stopPropagation()}>
-                <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
-                    <h3 className="font-bold flex items-center gap-2"><Tag size={18}/> Gắn Thẻ/Nhóm</h3>
-                    <button onClick={onClose}><X size={20}/></button>
-                </div>
-                <div className="p-4">
-                    <div className="mb-4">
-                        <p className="text-xs text-gray-500 mb-2 font-bold uppercase">Đang gắn:</p>
-                        <div className="flex flex-wrap gap-2">
-                            {currentTags.length > 0 ? currentTags.map(tag => (
-                                <span key={tag} className="bg-orange-100 text-orange-800 px-2 py-1 rounded-md text-sm font-bold flex items-center gap-1">
-                                    {tag}
-                                    <button onClick={() => handleRemove(tag)} className="hover:text-red-500"><X size={14}/></button>
-                                </span>
-                            )) : <span className="text-sm text-gray-400 italic">Chưa có thẻ nào</span>}
-                        </div>
-                    </div>
-                    <div className="flex gap-2 mb-4">
-                        <input type="text" className="border p-2 rounded flex-1 text-sm" placeholder="Nhập thẻ mới..." value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAdd(newTag)}/>
-                        <button onClick={() => handleAdd(newTag)} className="bg-green-600 text-white px-3 rounded text-sm font-bold">Thêm</button>
-                    </div>
-                    <div>
-                        <p className="text-xs text-gray-500 mb-2 font-bold uppercase">Chọn nhanh từ thẻ cũ:</p>
-                        <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
-                            {allTags.filter(t => !currentTags.includes(t) && t !== 'Tất cả').map(tag => (
-                                <button key={tag} onClick={() => handleAdd(tag)} className="bg-gray-100 text-gray-700 px-2 py-1 rounded-md text-sm hover:bg-gray-200 border border-gray-200">+ {tag}</button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-                <div className="p-3 border-t bg-gray-50 text-right">
-                    <button onClick={onClose} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold">Xong</button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
 const OnePageMechanic = () => {
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [adminPass, setAdminPass] = useState('');
@@ -298,39 +322,27 @@ const OnePageMechanic = () => {
   const [bookings, setBookings] = useState([]);
   const [user, setUser] = useState(null);
 
-  const defaultShopInfo = {
-    name: "VĂN NGHĨA MOTO",
-    tagline: "Chuẩn xác - Chất lượng - Chuyên nghiệp",
-    heroTitle: "XẾ YÊU CẦN CHĂM SÓC?",
-    heroDesc: "Thợ lành nghề, làm kỹ từng chi tiết. Không vẽ bệnh, báo giá trước khi làm.",
-    phone: "0909.123.456",
-    address: "123 Đường Số 1, Quận Bình Tân, TP.HCM",
-    workingHours: "8:00 Sáng - 7:00 Tối (Cả Chủ Nhật)",
-    wifi: "VanNghia_Free",
-    wifiPass: "0909123456",
-    logoUrl: null,
-    qrCodeUrl: null,
-    adminPassword: "1234",
-    reminderTitle: "ĐỪNG ĐỂ XE HỎNG MỚI SỬA!",
-    reminderDesc: "Bảo dưỡng định kỳ giúp xe vận hành êm ái và bền bỉ hơn. Đừng quên thay nhớt mỗi 1.500km nhé!"
-  };
-
-  const defaultServices = [
-    { id: 1, name: "Thay nhớt Motul/Castrol", iconUrl: null, desc: "Nhớt chính hãng, miễn phí công thay.", variants: [{ name: "Xe Số", price: "120.000đ" }, { name: "Xe Tay Ga", price: "140.000đ" }] },
-    { id: 2, name: "Vệ sinh nồi xe tay ga", price: "150.000đ", iconUrl: null, desc: "Khắc phục rung đầu, lì máy, hao xăng.", variants: [] },
-  ];
-
-  const defaultParts = [
-    { id: 1, name: "Lốp Michelin City Grip", price: "850.000đ", img: "⚫", stock: true, imageFile: null, tags: ["Lốp"], variants: [], desc: "Lốp bám đường cực tốt, bền bỉ theo thời gian." },
-    { id: 2, name: "Nhớt Motul Scooter", price: "160.000đ", img: "🛢️", stock: true, imageFile: null, tags: ["Nhớt"], variants: [], desc: "Dầu nhớt tổng hợp cao cấp cho xe tay ga." },
-  ];
-
-  const [shopInfo, setShopInfo] = useState(defaultShopInfo);
-  const [services, setServices] = useState(defaultServices);
-  const [parts, setParts] = useState(defaultParts);
+  // --- TRẠNG THÁI KHỞI TẠO NULL (LOADING) ---
+  const [shopInfo, setShopInfo] = useState(null);
+  const [services, setServices] = useState(null);
+  const [parts, setParts] = useState(null);
   const [selectedTag, setSelectedTag] = useState('Tất cả');
 
-  useEffect(() => { const initAuth = async () => { try { await signInAnonymously(auth); setAuthStatus('logged-in'); } catch (error) { console.error(error); setAuthStatus('error'); } }; initAuth(); const u = onAuthStateChanged(auth, setUser); return () => u(); }, []);
+  // --- FIREBASE AUTH & SYNC ---
+  useEffect(() => { 
+      const initAuth = async () => { 
+          try { 
+              await signInAnonymously(auth); 
+              setAuthStatus('logged-in'); 
+          } catch (error) { 
+              console.error(error); 
+              setAuthStatus('error'); 
+          } 
+      }; 
+      initAuth(); 
+      const u = onAuthStateChanged(auth, setUser); 
+      return () => u(); 
+  }, []);
   
   useEffect(() => {
     if (!user) return;
@@ -341,10 +353,25 @@ const OnePageMechanic = () => {
         categories: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list')
     };
     const handleErr = (error) => { if (error.code === 'permission-denied') setPermissionError(true); };
-    const uS = onSnapshot(paths.shop, (s) => { if(s.exists()) setShopInfo(prev => ({...defaultShopInfo, ...prev, ...s.data()})); }, handleErr);
-    const uSv = onSnapshot(paths.services, (s) => { if(s.exists()) { const d = s.data().items||[]; setServices(d.map(i => ({...i, images: i.images || (i.iconUrl ? [i.iconUrl] : []), variants: i.variants || []}))); } }, handleErr);
-    const uP = onSnapshot(paths.parts, (s) => { if(s.exists()) { const d = s.data().items||[]; setParts(d.map(i => ({...i, images: i.images || (i.imageFile ? [i.imageFile] : []), variants: i.variants || [], desc: i.desc || ""}))); } setIsDataLoaded(true); }, handleErr);
-    const uC = onSnapshot(paths.categories, (s) => { if(s.exists()) setCategoriesOrder(s.data().items||[]); }, handleErr);
+    
+    // Khi chưa có dữ liệu, onSnapshot trả về !exists() -> Ta set mặc định rỗng [] hoặc object rỗng
+    // Điều này đảm bảo không bao giờ hiện dữ liệu mẫu cũ.
+    const uS = onSnapshot(paths.shop, (s) => { 
+        setShopInfo(s.exists() ? s.data() : { name: "ĐANG TẢI...", tagline: "Vui lòng đợi...", address: "", phone: "", workingHours: "", adminPassword: "1234" }); 
+    }, handleErr);
+    
+    const uSv = onSnapshot(paths.services, (s) => { 
+        setServices(s.exists() ? s.data().items || [] : []); 
+    }, handleErr);
+    
+    const uP = onSnapshot(paths.parts, (s) => { 
+        setParts(s.exists() ? s.data().items || [] : []); 
+    }, handleErr);
+
+    const uC = onSnapshot(paths.categories, (s) => { 
+        if(s.exists()) setCategoriesOrder(s.data().items||[]); 
+        setIsDataLoaded(true); // Đánh dấu đã tải xong
+    }, handleErr);
     
     return () => { uS(); uSv(); uP(); uC(); };
   }, [user]);
@@ -364,12 +391,22 @@ const OnePageMechanic = () => {
   };
   
   // Debounce saves
-  useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'), shopInfo), 2000); return () => clearTimeout(t); }, [shopInfo, isDataLoaded]);
-  useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'), { items: services }), 2000); return () => clearTimeout(t); }, [services, isDataLoaded]);
-  useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'), { items: parts }), 2000); return () => clearTimeout(t); }, [parts, isDataLoaded]);
-  useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list'), { items: categoriesOrder }), 2000); return () => clearTimeout(t); }, [categoriesOrder, isDataLoaded]);
+  useEffect(() => { if (!isDataLoaded || !shopInfo) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'), shopInfo), 2000); return () => clearTimeout(t); }, [shopInfo, isDataLoaded]);
+  useEffect(() => { if (!isDataLoaded || !services) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'), { items: services }), 2000); return () => clearTimeout(t); }, [services, isDataLoaded]);
+  useEffect(() => { if (!isDataLoaded || !parts) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'), { items: parts }), 2000); return () => clearTimeout(t); }, [parts, isDataLoaded]);
+  useEffect(() => { if (!isDataLoaded || !categoriesOrder) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list'), { items: categoriesOrder }), 2000); return () => clearTimeout(t); }, [categoriesOrder, isDataLoaded]);
 
-  useEffect(() => { document.title = shopInfo.name || "Tiệm Sửa Xe"; }, [shopInfo.name]);
+  useEffect(() => { if (shopInfo) document.title = shopInfo.name || "Tiệm Sửa Xe"; }, [shopInfo]);
+
+  // Loading screen
+  if (!isDataLoaded || !shopInfo || !services || !parts) {
+      return (
+          <div className="min-h-screen flex items-center justify-center bg-gray-50 flex-col gap-4">
+              <Loader className="animate-spin text-orange-500" size={48} />
+              <p className="text-gray-500 font-bold">Đang tải dữ liệu cửa hàng...</p>
+          </div>
+      );
+  }
 
   const getCategories = (items) => {
       const usedTags = new Set();
@@ -391,7 +428,12 @@ const OnePageMechanic = () => {
       });
   };
 
-  const getAllUniqueTags = () => { const all = new Set(); parts.forEach(p => p.tags && p.tags.forEach(t => all.add(t))); return Array.from(all); };
+  const getAllUniqueTags = () => {
+      const all = new Set();
+      parts.forEach(p => p.tags && p.tags.forEach(t => all.add(t)));
+      return Array.from(all);
+  };
+
   const partCategories = getCategories(parts);
 
   const handleImageUpload = (e, list, setList, itemId) => {
