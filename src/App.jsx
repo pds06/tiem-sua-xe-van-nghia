@@ -95,46 +95,6 @@ const EditableText = ({ isAdminMode, value, onChange, className, placeholder, mu
   );
 };
 
-// --- COMPONENT SKELETON LOADER (MÀN HÌNH CHỜ) ---
-const SkeletonLoader = () => (
-    <div className="min-h-screen bg-gray-50 w-full flex flex-col">
-        {/* Skeleton Header */}
-        <div className="h-20 bg-white w-full shadow-sm flex items-center px-4 justify-between animate-pulse">
-            <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-gray-200 rounded-full"></div>
-                <div className="space-y-2">
-                    <div className="h-6 w-48 bg-gray-200 rounded"></div>
-                    <div className="h-4 w-32 bg-gray-200 rounded"></div>
-                </div>
-            </div>
-            <div className="hidden md:flex gap-8">
-                <div className="h-4 w-20 bg-gray-200 rounded"></div>
-                <div className="h-4 w-20 bg-gray-200 rounded"></div>
-            </div>
-        </div>
-
-        {/* Skeleton Hero */}
-        <div className="h-64 w-full bg-gray-200 animate-pulse mt-1"></div>
-
-        {/* Skeleton Content Grid */}
-        <div className="flex-1 p-8 container mx-auto max-w-[1920px]">
-             <div className="h-8 w-40 bg-gray-200 rounded mb-8 animate-pulse"></div>
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                 {[1,2,3,4,5,6,7,8].map(i => (
-                     <div key={i} className="h-40 bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex gap-4 animate-pulse">
-                         <div className="w-24 h-24 bg-gray-200 rounded-lg shrink-0"></div>
-                         <div className="flex-1 space-y-3 py-2">
-                             <div className="h-5 w-full bg-gray-200 rounded"></div>
-                             <div className="h-4 w-2/3 bg-gray-200 rounded"></div>
-                             <div className="h-6 w-1/3 bg-gray-200 rounded mt-auto"></div>
-                         </div>
-                     </div>
-                 ))}
-             </div>
-        </div>
-    </div>
-);
-
 // --- COMPONENT CATEGORY MANAGER MODAL ---
 const CategoryManagerModal = ({ categories, onReorder, onRename, onClose }) => {
     const [editingIndex, setEditingIndex] = useState(-1);
@@ -343,26 +303,40 @@ const OnePageMechanic = () => {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [newPassword, setNewPassword] = useState(''); 
   const fileInputRef = useRef(null); 
-  const [isDataLoaded, setIsDataLoaded] = useState(false); 
   const [saveStatus, setSaveStatus] = useState('idle');
   const [authStatus, setAuthStatus] = useState('checking');
   const [permissionError, setPermissionError] = useState(false);
   const [viewItem, setViewItem] = useState(null);
-  
-  // State quản lý tag
   const [editingTagItem, setEditingTagItem] = useState(null);
-  const [showCategoryManager, setShowCategoryManager] = useState(false); // Modal quản lý danh mục
-  const [categoriesOrder, setCategoriesOrder] = useState([]); // Thứ tự danh mục
-
+  const [showCategoryManager, setShowCategoryManager] = useState(false); 
+  
+  // State UI
   const [activeTab, setActiveTab] = useState('services');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  // --- LOCAL CACHE INITIALIZATION (TẢI NHANH TỨC THÌ) ---
+  const [shopInfo, setShopInfo] = useState(() => {
+      const saved = localStorage.getItem('cache_shop_info');
+      return saved ? JSON.parse(saved) : { name: "", tagline: "", address: "", phone: "", workingHours: "", adminPassword: "1234", wifi: "", wifiPass: "" };
+  });
+
+  const [services, setServices] = useState(() => {
+      const saved = localStorage.getItem('cache_services');
+      return saved ? JSON.parse(saved) : [];
+  });
+
+  const [parts, setParts] = useState(() => {
+      const saved = localStorage.getItem('cache_parts');
+      return saved ? JSON.parse(saved) : [];
+  });
+
+  const [categoriesOrder, setCategoriesOrder] = useState(() => {
+      const saved = localStorage.getItem('cache_categories');
+      return saved ? JSON.parse(saved) : [];
+  });
+
   const [bookings, setBookings] = useState([]);
   const [user, setUser] = useState(null);
-
-  // --- TRẠNG THÁI KHỞI TẠO NULL (LOADING) ---
-  const [shopInfo, setShopInfo] = useState(null);
-  const [services, setServices] = useState(null);
-  const [parts, setParts] = useState(null);
   const [selectedTag, setSelectedTag] = useState('Tất cả');
 
   // --- FIREBASE AUTH & SYNC ---
@@ -374,30 +348,47 @@ const OnePageMechanic = () => {
         shop: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'),
         services: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'),
         parts: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'),
-        categories: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list')
+        categories: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list'),
+        bookings: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'bookings_list')
     };
     const handleErr = (error) => { if (error.code === 'permission-denied') setPermissionError(true); };
     
-    // Khi chưa có dữ liệu, onSnapshot trả về !exists() -> Ta set mặc định rỗng [] hoặc object rỗng
-    // Điều này đảm bảo không bao giờ hiện dữ liệu mẫu cũ.
+    // FETCH AND CACHE
     const uS = onSnapshot(paths.shop, (s) => { 
-        setShopInfo(s.exists() ? s.data() : { name: "ĐANG TẢI...", tagline: "Vui lòng đợi...", address: "", phone: "", workingHours: "", adminPassword: "1234" }); 
+        if(s.exists()) {
+            const data = s.data();
+            setShopInfo(prev => ({...prev, ...data})); 
+            localStorage.setItem('cache_shop_info', JSON.stringify(data));
+        }
     }, handleErr);
     
     const uSv = onSnapshot(paths.services, (s) => { 
-        setServices(s.exists() ? s.data().items || [] : []); 
+        if(s.exists()) { 
+            const d = s.data().items||[]; 
+            setServices(d); 
+            localStorage.setItem('cache_services', JSON.stringify(d));
+        } 
     }, handleErr);
     
     const uP = onSnapshot(paths.parts, (s) => { 
-        setParts(s.exists() ? s.data().items || [] : []); 
+        if(s.exists()) { 
+            const d = s.data().items||[]; 
+            setParts(d); 
+            localStorage.setItem('cache_parts', JSON.stringify(d));
+        } 
     }, handleErr);
 
     const uC = onSnapshot(paths.categories, (s) => { 
-        if(s.exists()) setCategoriesOrder(s.data().items||[]); 
-        setIsDataLoaded(true); // Đánh dấu đã tải xong
+        if(s.exists()) {
+            const d = s.data().items||[];
+            setCategoriesOrder(d);
+            localStorage.setItem('cache_categories', JSON.stringify(d));
+        }
     }, handleErr);
+
+    const uB = onSnapshot(paths.bookings, (s) => { if(s.exists()) setBookings(s.data().items||[]); }, handleErr);
     
-    return () => { uS(); uSv(); uP(); uC(); };
+    return () => { uS(); uSv(); uP(); uC(); uB(); };
   }, [user]);
 
   const forceSaveAll = async () => {
@@ -415,22 +406,12 @@ const OnePageMechanic = () => {
   };
   
   // Debounce saves
-  useEffect(() => { if (!isDataLoaded || !shopInfo) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'), shopInfo), 2000); return () => clearTimeout(t); }, [shopInfo, isDataLoaded]);
-  useEffect(() => { if (!isDataLoaded || !services) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'), { items: services }), 2000); return () => clearTimeout(t); }, [services, isDataLoaded]);
-  useEffect(() => { if (!isDataLoaded || !parts) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'), { items: parts }), 2000); return () => clearTimeout(t); }, [parts, isDataLoaded]);
-  useEffect(() => { if (!isDataLoaded || !categoriesOrder) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list'), { items: categoriesOrder }), 2000); return () => clearTimeout(t); }, [categoriesOrder, isDataLoaded]);
+  useEffect(() => { if (!shopInfo) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'), shopInfo), 2000); return () => clearTimeout(t); }, [shopInfo, user]);
+  useEffect(() => { if (!services) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'), { items: services }), 2000); return () => clearTimeout(t); }, [services, user]);
+  useEffect(() => { if (!parts) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'), { items: parts }), 2000); return () => clearTimeout(t); }, [parts, user]);
+  useEffect(() => { if (!categoriesOrder) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list'), { items: categoriesOrder }), 2000); return () => clearTimeout(t); }, [categoriesOrder, user]);
 
-  useEffect(() => { if (shopInfo) document.title = shopInfo.name || "Tiệm Sửa Xe"; }, [shopInfo]);
-
-  // Loading screen
-  if (!isDataLoaded || !shopInfo || !services || !parts) {
-      return (
-          <div className="min-h-screen flex items-center justify-center bg-gray-50 flex-col gap-4">
-              <Loader className="animate-spin text-orange-500" size={48} />
-              <p className="text-gray-500 font-bold">Đang tải dữ liệu cửa hàng...</p>
-          </div>
-      );
-  }
+  useEffect(() => { if (shopInfo?.name) document.title = shopInfo.name; }, [shopInfo]);
 
   const getCategories = (items) => {
       const usedTags = new Set();
@@ -561,7 +542,7 @@ const OnePageMechanic = () => {
   const addNewService = () => setServices([...services, { id: Date.now(), name: "Dịch vụ mới", price: "0đ", images: [], desc: "Mô tả...", variants: [] }]);
   const deleteService = (id) => { if(window.confirm("Xóa?")) setServices(services.filter(s => s.id !== id)); };
   const addNewPart = () => setParts([...parts, { id: Date.now(), name: "Phụ tùng mới", price: "0đ", stock: true, images: [], tags: ["Khác"], variants: [], desc: "" }]);
-  const handleLogin = () => { const p = shopInfo.adminPassword || "1234"; if (adminPass === p) { setIsAdminMode(true); setShowLoginModal(false); setAdminPass(''); } else { alert('Sai mật khẩu!'); } };
+  const handleLogin = () => { const p = shopInfo?.adminPassword || "1234"; if (adminPass === p) { setIsAdminMode(true); setShowLoginModal(false); setAdminPass(''); } else { alert('Sai mật khẩu!'); } };
   const handleChangePassword = () => { if(newPassword) { if(window.confirm('Đổi mật khẩu?')) { setShopInfo(p => ({...p, adminPassword: newPassword})); setNewPassword(''); alert('Đã đổi!'); } } };
 
   // --- RENDER ITEM CARD ---
@@ -702,12 +683,12 @@ const OnePageMechanic = () => {
         <div className="w-full px-4 py-3 flex justify-between items-center">
           <div className="flex items-center space-x-3 flex-1">
             <div className="relative group shrink-0">
-                {shopInfo.logoUrl ? <img src={shopInfo.logoUrl} alt="Logo" className="h-16 w-auto object-contain cursor-pointer" onClick={() => setViewItem({ name: 'Logo Quán', images: [shopInfo.logoUrl] })}/> : <div className="h-16 w-16 bg-orange-500 rounded flex items-center justify-center text-xl font-bold">TM</div>}
+                {shopInfo?.logoUrl ? <img src={shopInfo.logoUrl} alt="Logo" className="h-16 w-auto object-contain cursor-pointer" onClick={() => setViewItem({ name: 'Logo Quán', images: [shopInfo.logoUrl] })}/> : <div className="h-16 w-16 bg-orange-500 rounded flex items-center justify-center text-xl font-bold">TM</div>}
                 {isAdminMode && <label className="absolute inset-0 flex items-center justify-center bg-black/50 cursor-pointer rounded opacity-0 group-hover:opacity-100 transition"><Upload size={24} className="text-white"/><input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload}/></label>}
             </div>
             <div className="flex-1 max-w-md ml-2 overflow-hidden">
-                <div className="font-bold text-xl leading-tight truncate"><EditableText isAdminMode={isAdminMode} value={shopInfo.name} onChange={(val) => setShopInfo({...shopInfo, name: val})} className="font-bold"/></div>
-                <div className="text-sm text-gray-400 hidden md:block truncate"><EditableText isAdminMode={isAdminMode} value={shopInfo.tagline} onChange={(val) => setShopInfo({...shopInfo, tagline: val})}/></div>
+                <div className="font-bold text-xl leading-tight truncate"><EditableText isAdminMode={isAdminMode} value={shopInfo?.name} onChange={(val) => setShopInfo({...shopInfo, name: val})} className="font-bold"/></div>
+                <div className="text-sm text-gray-400 hidden md:block truncate"><EditableText isAdminMode={isAdminMode} value={shopInfo?.tagline} onChange={(val) => setShopInfo({...shopInfo, tagline: val})}/></div>
             </div>
           </div>
           <nav className="hidden md:flex space-x-8 text-lg font-bold">
@@ -741,9 +722,9 @@ const OnePageMechanic = () => {
       <div className="bg-slate-800 text-white py-8 px-4 text-center relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
         <div className="relative z-10 w-full px-4 mx-auto">
-          <div className="text-orange-500 font-bold uppercase tracking-wider text-base mb-2">{shopInfo.tagline}</div>
-          <h2 className="text-3xl md:text-5xl font-extrabold mb-4"><EditableText isAdminMode={isAdminMode} value={shopInfo.heroTitle} onChange={(val) => setShopInfo({...shopInfo, heroTitle: val})} className="bg-transparent text-white text-center w-full block" multiline={true} style={{color: isAdminMode ? 'black' : 'white'}}/></h2>
-          <div className="text-gray-300 mb-6 max-w-4xl mx-auto"><EditableText isAdminMode={isAdminMode} value={shopInfo.heroDesc} onChange={(val) => setShopInfo({...shopInfo, heroDesc: val})} className="bg-transparent text-gray-300 text-center w-full block text-base md:text-lg font-light" multiline={true} style={{color: isAdminMode ? 'black' : '#d1d5db'}}/></div>
+          <div className="text-orange-500 font-bold uppercase tracking-wider text-base mb-2">{shopInfo?.tagline}</div>
+          <h2 className="text-3xl md:text-5xl font-extrabold mb-4"><EditableText isAdminMode={isAdminMode} value={shopInfo?.heroTitle} onChange={(val) => setShopInfo({...shopInfo, heroTitle: val})} className="bg-transparent text-white text-center w-full block" multiline={true} style={{color: isAdminMode ? 'black' : 'white'}}/></h2>
+          <div className="text-gray-300 mb-6 max-w-4xl mx-auto"><EditableText isAdminMode={isAdminMode} value={shopInfo?.heroDesc} onChange={(val) => setShopInfo({...shopInfo, heroDesc: val})} className="bg-transparent text-gray-300 text-center w-full block text-base md:text-lg font-light" multiline={true} style={{color: isAdminMode ? 'black' : '#d1d5db'}}/></div>
         </div>
       </div>
 
@@ -810,10 +791,10 @@ const OnePageMechanic = () => {
                  <Bell className="w-10 h-10 text-orange-600 animate-pulse" />
             </div>
             <h2 className="text-xl md:text-3xl font-black mb-3 text-slate-900 leading-tight uppercase">
-                <EditableText isAdminMode={isAdminMode} value={shopInfo.reminderTitle} onChange={(val) => setShopInfo({...shopInfo, reminderTitle: val})} className="text-center font-black"/>
+                <EditableText isAdminMode={isAdminMode} value={shopInfo?.reminderTitle} onChange={(val) => setShopInfo({...shopInfo, reminderTitle: val})} className="text-center font-black"/>
             </h2>
             <div className="text-base md:text-lg text-gray-600 leading-snug mb-4 max-w-3xl mx-auto font-light">
-                <EditableText isAdminMode={isAdminMode} value={shopInfo.reminderDesc} onChange={(val) => setShopInfo({...shopInfo, reminderDesc: val})} multiline={true} className="text-center bg-transparent p-0 border-none leading-snug"/>
+                <EditableText isAdminMode={isAdminMode} value={shopInfo?.reminderDesc} onChange={(val) => setShopInfo({...shopInfo, reminderDesc: val})} multiline={true} className="text-center bg-transparent p-0 border-none leading-snug"/>
             </div>
          </div>
       </section>
@@ -822,19 +803,19 @@ const OnePageMechanic = () => {
       <footer className="bg-slate-900 text-slate-300 py-10 px-4 mt-0 pb-32">
         <div className="w-full px-2 md:px-8 grid md:grid-cols-2 gap-8">
           <div>
-            <h4 className="text-white font-black text-2xl mb-4 border-b-2 border-orange-500 pb-2 inline-block">{shopInfo.name}</h4>
+            <h4 className="text-white font-black text-2xl mb-4 border-b-2 border-orange-500 pb-2 inline-block">{shopInfo?.name}</h4>
             <div className="space-y-4 text-base md:text-lg font-medium">
               <div className="flex items-start gap-3">
                   <MapPin className="text-orange-500 shrink-0 mt-1" size={20} />
-                  <EditableText isAdminMode={isAdminMode} value={shopInfo.address} onChange={(val) => setShopInfo({...shopInfo, address: val})} className="text-slate-300 w-full" multiline={isAdminMode}/>
+                  <EditableText isAdminMode={isAdminMode} value={shopInfo?.address} onChange={(val) => setShopInfo({...shopInfo, address: val})} className="text-slate-300 w-full" multiline={isAdminMode}/>
               </div>
               <div className="flex items-center gap-3">
                   <Clock className="text-orange-500 shrink-0" size={20} />
-                  <EditableText isAdminMode={isAdminMode} value={shopInfo.workingHours} onChange={(val) => setShopInfo({...shopInfo, workingHours: val})} className="text-slate-300 w-full" multiline={isAdminMode}/>
+                  <EditableText isAdminMode={isAdminMode} value={shopInfo?.workingHours} onChange={(val) => setShopInfo({...shopInfo, workingHours: val})} className="text-slate-300 w-full" multiline={isAdminMode}/>
               </div>
               <div className="flex items-center gap-3">
                   <Phone className="text-orange-500 shrink-0" size={20} />
-                  <EditableText isAdminMode={isAdminMode} value={shopInfo.phone} onChange={(val) => setShopInfo({...shopInfo, phone: val})} className="text-slate-300"/>
+                  <EditableText isAdminMode={isAdminMode} value={shopInfo?.phone} onChange={(val) => setShopInfo({...shopInfo, phone: val})} className="text-slate-300"/>
               </div>
             </div>
           </div>
@@ -842,14 +823,14 @@ const OnePageMechanic = () => {
             <h5 className="text-white font-bold flex items-center gap-3 mb-4 text-xl"><Wifi size={24} className="text-green-400"/> Wifi Miễn Phí</h5>
             <div className="bg-slate-900 p-4 rounded-xl text-center relative z-10 border border-slate-700 shadow-inner">
               <div className="text-xs text-gray-400 mb-1 uppercase tracking-widest font-bold">Tên mạng</div>
-              <div className="font-mono text-xl text-orange-400 font-bold tracking-wide mb-2"><EditableText isAdminMode={isAdminMode} value={shopInfo.wifi} onChange={(val) => setShopInfo({...shopInfo, wifi: val})}/></div>
+              <div className="font-mono text-xl text-orange-400 font-bold tracking-wide mb-2"><EditableText isAdminMode={isAdminMode} value={shopInfo?.wifi} onChange={(val) => setShopInfo({...shopInfo, wifi: val})}/></div>
               <div className="h-px bg-slate-700 my-2"></div>
               <div className="text-xs text-gray-400 mb-1 uppercase tracking-widest font-bold">Mật khẩu</div>
-              <div className="font-mono text-2xl text-white tracking-widest"><EditableText isAdminMode={isAdminMode} value={shopInfo.wifiPass} onChange={(val) => setShopInfo({...shopInfo, wifiPass: val})}/></div>
+              <div className="font-mono text-2xl text-white tracking-widest"><EditableText isAdminMode={isAdminMode} value={shopInfo?.wifiPass} onChange={(val) => setShopInfo({...shopInfo, wifiPass: val})}/></div>
             </div>
             <div className="mt-6 text-center relative">
                 <p className="text-xs text-gray-400 mb-2 uppercase font-black tracking-wider">Quét QR chuyển khoản</p>
-                {shopInfo.qrCodeUrl ? <img src={shopInfo.qrCodeUrl} alt="QR" className="w-32 h-32 mx-auto rounded-xl border-4 border-white shadow-lg"/> : <div className="w-32 h-32 mx-auto bg-gray-700 flex items-center justify-center text-xs text-gray-400">Chưa có QR</div>}
+                {shopInfo?.qrCodeUrl ? <img src={shopInfo.qrCodeUrl} alt="QR" className="w-32 h-32 mx-auto rounded-xl border-4 border-white shadow-lg"/> : <div className="w-32 h-32 mx-auto bg-gray-700 flex items-center justify-center text-xs text-gray-400">Chưa có QR</div>}
                 {isAdminMode && <label className="absolute inset-0 bg-black/70 flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition rounded-xl"><span className="text-white font-bold bg-blue-600 px-4 py-2 rounded-lg shadow-lg text-sm">Đổi Ảnh QR</span><input type="file" className="hidden" accept="image/*" onChange={handleQRUpload}/></label>}
             </div>
           </div>
@@ -881,7 +862,7 @@ const OnePageMechanic = () => {
                 <h3 className="font-black text-3xl mb-6 text-center text-slate-900 uppercase">Đăng nhập chủ tiệm</h3>
                 <input type="password" className="w-full border-2 border-gray-300 p-4 rounded-xl mb-6 text-center text-3xl tracking-widest focus:border-orange-500 outline-none font-bold bg-gray-50 transition-colors" placeholder="••••" value={adminPass} onChange={(e) => setAdminPass(e.target.value)} autoFocus/>
                 <button onClick={handleLogin} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-xl hover:bg-slate-800 shadow-xl transform active:scale-95 transition-all">TRUY CẬP</button>
-                {(!shopInfo.adminPassword || shopInfo.adminPassword === '1234') && (
+                {(!shopInfo?.adminPassword || shopInfo?.adminPassword === '1234') && (
                     <p className="text-center text-base text-red-500 mt-6 font-bold bg-red-50 p-3 rounded-xl border border-red-100">Mật khẩu mặc định: 1234</p>
                 )}
             </div>
