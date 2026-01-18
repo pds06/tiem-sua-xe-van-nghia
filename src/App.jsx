@@ -32,9 +32,7 @@ import {
   Database,
   ShieldAlert,
   Copy,
-  ZoomIn,
-  Video,
-  PlayCircle
+  ZoomIn
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
@@ -100,7 +98,6 @@ const ItemDetailModal = ({ item, onClose }) => {
     
     // Lấy ảnh đầu tiên (vì giờ chỉ có 1 ảnh) hoặc fallback cũ
     const displayImage = (item.images && item.images.length > 0) ? item.images[0] : (item.iconUrl || item.imageFile);
-    const displayVideo = item.videoUrl;
 
     return (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
@@ -109,21 +106,13 @@ const ItemDetailModal = ({ item, onClose }) => {
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Media Header */}
-                <div className="relative h-64 bg-black shrink-0 flex items-center justify-center overflow-hidden">
-                    {displayVideo ? (
-                        <iframe 
-                            src={displayVideo.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')} 
-                            title="Video" 
-                            className="w-full h-full" 
-                            frameBorder="0" 
-                            allowFullScreen
-                        ></iframe>
-                    ) : displayImage ? (
+                <div className="relative h-64 bg-gray-100 shrink-0 flex items-center justify-center overflow-hidden">
+                    {displayImage ? (
                         <img src={displayImage} alt={item.name} className="w-full h-full object-contain" />
                     ) : (
                          <div className="flex flex-col items-center text-gray-500">
                             {item.price ? <ImageIcon size={64} /> : <Wrench size={64}/>}
-                            <span className="text-xs mt-2">Không có ảnh/video</span>
+                            <span className="text-xs mt-2">Không có ảnh</span>
                          </div>
                     )}
                     <button 
@@ -388,20 +377,9 @@ const OnePageMechanic = () => {
 
   // --- HÀM XÓA ẢNH (RESET VỀ MẶC ĐỊNH) ---
   const handleRemoveMedia = (list, setList, itemId) => {
-      if(window.confirm('Bạn muốn xóa ảnh/video này?')) {
+      if(window.confirm('Bạn muốn xóa ảnh này?')) {
           const updatedList = list.map(item => 
-              item.id === itemId ? { ...item, images: [], videoUrl: null } : item
-          );
-          setList(updatedList);
-      }
-  };
-
-  // --- HÀM THÊM VIDEO ---
-  const handleAddVideo = (list, setList, itemId) => {
-      const url = prompt("Nhập link Youtube hoặc link video (mp4):");
-      if (url) {
-          const updatedList = list.map(item => 
-              item.id === itemId ? { ...item, videoUrl: url } : item
+              item.id === itemId ? { ...item, images: [] } : item
           );
           setList(updatedList);
       }
@@ -419,9 +397,9 @@ const OnePageMechanic = () => {
   const handleLogin = () => { const currentPass = shopInfo.adminPassword || "1234"; if (adminPass === currentPass) { setIsAdminMode(true); setShowLoginModal(false); setAdminPass(''); } else { alert('Sai mật khẩu!'); } };
   const deleteBooking = (id) => { if(window.confirm("Xóa?")) setBookings(bookings.filter(b => b.id !== id)); };
   const createCalendarReminder = () => { window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent("Bảo dưỡng xe tại " + shopInfo.name)}`, '_blank'); };
-  const addNewService = () => setServices([...services, { id: Date.now(), name: "Dịch vụ mới", price: "0đ", images: [], videoUrl: null, desc: "Mô tả...", variants: [] }]);
+  const addNewService = () => setServices([...services, { id: Date.now(), name: "Dịch vụ mới", price: "0đ", images: [], desc: "Mô tả...", variants: [] }]);
   const deleteService = (id) => { if(window.confirm("Xóa?")) setServices(services.filter(s => s.id !== id)); };
-  const addNewPart = () => setParts([...parts, { id: Date.now(), name: "Phụ tùng mới", price: "0đ", img: "📦", stock: true, images: [], videoUrl: null, tags: [] }]);
+  const addNewPart = () => setParts([...parts, { id: Date.now(), name: "Phụ tùng mới", price: "0đ", img: "📦", stock: true, images: [], tags: [] }]);
   const rulesSnippet = `rules_version = '2'; service cloud.firestore { match /databases/{database}/documents { match /{document=**} { allow read, write: if true; } } }`;
 
   return (
@@ -473,6 +451,19 @@ const OnePageMechanic = () => {
                     </div>
                     <div className="flex items-center gap-2 bg-gray-100 p-2 rounded-lg mt-2 lg:mt-0"><Lock size={16} className="text-gray-500"/><input type="text" placeholder="Mật khẩu mới..." className="bg-transparent text-sm outline-none w-32" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}/><button onClick={handleChangePassword} className="bg-slate-900 text-white text-xs px-2 py-1 rounded hover:bg-slate-700">Đổi</button></div>
                 </div>
+                {bookings.length === 0 ? <p className="text-gray-500 italic text-sm">Chưa có khách đặt lịch.</p> : (
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 max-h-60 overflow-y-auto">
+                        {bookings.map((b) => (
+                            <div key={b.id} className="border border-gray-200 p-3 rounded-lg shadow-sm bg-gray-50 relative">
+                                <button onClick={() => deleteBooking(b.id)} className="absolute top-2 right-2 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
+                                <div className="font-bold text-slate-800">{b.name} <span className="text-gray-500 font-normal">- {b.phone}</span></div>
+                                <div className="text-sm text-gray-600 mt-1"><span className="font-semibold text-orange-600">{b.bike}</span> • {b.time}</div>
+                                <div className="text-sm text-gray-700 mt-1 bg-white p-1 rounded border border-gray-100">"{b.service}"</div>
+                                <div className="text-xs text-gray-400 mt-1 text-right">{b.created_at}</div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
       )}
@@ -507,25 +498,22 @@ const OnePageMechanic = () => {
                       </div>
                   )}
                   {/* QUẢN LÝ ẢNH DỊCH VỤ (ADMIN) */}
-                  <div className="w-20 h-20 bg-gray-100 rounded-lg shrink-0 overflow-hidden relative border border-gray-200 flex items-center justify-center">
-                       {service.videoUrl ? (
-                           <Video className="text-orange-500" size={32}/>
-                       ) : (service.images && service.images.length > 0) ? (
+                  <div className="w-20 h-20 bg-gray-100 rounded-lg shrink-0 overflow-hidden relative group/icon border border-gray-200 flex items-center justify-center">
+                       {(service.images && service.images.length > 0) ? (
                            <img src={service.images[0]} alt="icon" className="w-full h-full object-cover" />
                        ) : (
                            <Wrench className="text-gray-400" size={32} />
                        )}
                        
                        {isAdminMode ? (
-                           <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition gap-2">
+                           <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover/icon:opacity-100 transition gap-2">
                                <label className="cursor-pointer text-white hover:text-green-300" title="Tải ảnh mới"><Upload size={20}/><input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, services, setServices, service.id)}/></label>
-                               <button onClick={() => handleAddVideo(services, setServices, service.id)} className="text-white hover:text-blue-300" title="Dán Link Video"><Video size={20}/></button>
-                               {((service.images && service.images.length > 0) || service.videoUrl) && (
-                                   <button onClick={() => handleRemoveMedia(services, setServices, service.id)} className="text-red-400 hover:text-red-200 bg-white/10 p-1 rounded-full" title="Xóa ảnh/video"><Trash2 size={20}/></button>
+                               {((service.images && service.images.length > 0)) && (
+                                   <button onClick={() => handleRemoveMedia(services, setServices, service.id)} className="text-red-400 hover:text-red-200 bg-white/10 p-1 rounded-full" title="Xóa ảnh"><Trash2 size={20}/></button>
                                )}
                            </div>
                        ) : (
-                           <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"><ZoomIn className="text-white drop-shadow-md" size={20}/></div>
+                           <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover/icon:opacity-100 transition"><ZoomIn className="text-white drop-shadow-md" size={20}/></div>
                        )}
                   </div>
                   
@@ -575,9 +563,7 @@ const OnePageMechanic = () => {
                     </div>
                     {/* QUẢN LÝ ẢNH PHỤ TÙNG (ADMIN) */}
                     <div className="w-full aspect-square bg-gray-100 flex items-center justify-center text-4xl overflow-hidden relative group/icon">
-                        {part.videoUrl ? (
-                            <Video className="text-orange-500" size={48}/>
-                        ) : (part.images && part.images.length > 0) ? (
+                        {(part.images && part.images.length > 0) ? (
                             <img src={part.images[0]} alt={part.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"/>
                         ) : (
                             <ImageIcon className="text-gray-300" size={48}/>
@@ -586,9 +572,8 @@ const OnePageMechanic = () => {
                         {isAdminMode ? (
                            <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover/icon:opacity-100 transition gap-2">
                                <label className="cursor-pointer text-white hover:text-green-300" title="Tải ảnh mới"><Upload size={24}/><input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, parts, setParts, part.id)}/></label>
-                               <button onClick={() => handleAddVideo(parts, setParts, part.id)} className="text-white hover:text-blue-300" title="Dán Link Video"><Video size={24}/></button>
-                               {((part.images && part.images.length > 0) || part.videoUrl) && (
-                                   <button onClick={() => handleRemoveMedia(parts, setParts, part.id)} className="text-red-400 hover:text-red-200 bg-white/10 p-2 rounded-full mt-2" title="Xóa ảnh/video"><Trash2 size={24}/></button>
+                               {((part.images && part.images.length > 0)) && (
+                                   <button onClick={() => handleRemoveMedia(parts, setParts, part.id)} className="text-red-400 hover:text-red-200 bg-white/10 p-2 rounded-full mt-2" title="Xóa ảnh"><Trash2 size={24}/></button>
                                )}
                            </div>
                         ) : (
