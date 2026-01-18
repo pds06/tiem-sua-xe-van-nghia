@@ -95,6 +95,46 @@ const EditableText = ({ isAdminMode, value, onChange, className, placeholder, mu
   );
 };
 
+// --- COMPONENT SKELETON LOADER (MÀN HÌNH CHỜ) ---
+const SkeletonLoader = () => (
+    <div className="min-h-screen bg-gray-50 w-full flex flex-col">
+        {/* Skeleton Header */}
+        <div className="h-20 bg-white w-full shadow-sm flex items-center px-4 justify-between animate-pulse">
+            <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-gray-200 rounded-full"></div>
+                <div className="space-y-2">
+                    <div className="h-6 w-48 bg-gray-200 rounded"></div>
+                    <div className="h-4 w-32 bg-gray-200 rounded"></div>
+                </div>
+            </div>
+            <div className="hidden md:flex gap-8">
+                <div className="h-4 w-20 bg-gray-200 rounded"></div>
+                <div className="h-4 w-20 bg-gray-200 rounded"></div>
+            </div>
+        </div>
+
+        {/* Skeleton Hero */}
+        <div className="h-64 w-full bg-gray-200 animate-pulse mt-1"></div>
+
+        {/* Skeleton Content Grid */}
+        <div className="flex-1 p-8 container mx-auto max-w-[1920px]">
+             <div className="h-8 w-40 bg-gray-200 rounded mb-8 animate-pulse"></div>
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                 {[1,2,3,4,5,6,7,8].map(i => (
+                     <div key={i} className="h-40 bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex gap-4 animate-pulse">
+                         <div className="w-24 h-24 bg-gray-200 rounded-lg shrink-0"></div>
+                         <div className="flex-1 space-y-3 py-2">
+                             <div className="h-5 w-full bg-gray-200 rounded"></div>
+                             <div className="h-4 w-2/3 bg-gray-200 rounded"></div>
+                             <div className="h-6 w-1/3 bg-gray-200 rounded mt-auto"></div>
+                         </div>
+                     </div>
+                 ))}
+             </div>
+        </div>
+    </div>
+);
+
 // --- COMPONENT CATEGORY MANAGER MODAL ---
 const CategoryManagerModal = ({ categories, onReorder, onRename, onClose }) => {
     const [editingIndex, setEditingIndex] = useState(-1);
@@ -159,7 +199,7 @@ const CategoryManagerModal = ({ categories, onReorder, onRename, onClose }) => {
     );
 };
 
-// --- COMPONENT TAG MANAGER (QUẢN LÝ TAG CHO ITEM) ---
+// --- COMPONENT TAG MANAGER ---
 const TagManagerModal = ({ item, allTags, onClose, onUpdateTags }) => {
     const [newTag, setNewTag] = useState('');
     const currentTags = item.tags || [];
@@ -184,7 +224,6 @@ const TagManagerModal = ({ item, allTags, onClose, onUpdateTags }) => {
                     <button onClick={onClose}><X size={20}/></button>
                 </div>
                 <div className="p-4">
-                    {/* Danh sách tag hiện tại */}
                     <div className="mb-4">
                         <p className="text-xs text-gray-500 mb-2 font-bold uppercase">Đang gắn:</p>
                         <div className="flex flex-wrap gap-2">
@@ -196,8 +235,6 @@ const TagManagerModal = ({ item, allTags, onClose, onUpdateTags }) => {
                             )) : <span className="text-sm text-gray-400 italic">Chưa có thẻ nào</span>}
                         </div>
                     </div>
-
-                    {/* Input thêm mới */}
                     <div className="flex gap-2 mb-4">
                         <input 
                             type="text" 
@@ -209,8 +246,6 @@ const TagManagerModal = ({ item, allTags, onClose, onUpdateTags }) => {
                         />
                         <button onClick={() => handleAdd(newTag)} className="bg-green-600 text-white px-3 rounded text-sm font-bold">Thêm</button>
                     </div>
-
-                    {/* Gợi ý tag cũ */}
                     <div>
                         <p className="text-xs text-gray-500 mb-2 font-bold uppercase">Chọn nhanh từ thẻ cũ:</p>
                         <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
@@ -313,6 +348,8 @@ const OnePageMechanic = () => {
   const [authStatus, setAuthStatus] = useState('checking');
   const [permissionError, setPermissionError] = useState(false);
   const [viewItem, setViewItem] = useState(null);
+  
+  // State quản lý tag
   const [editingTagItem, setEditingTagItem] = useState(null);
   const [showCategoryManager, setShowCategoryManager] = useState(false); // Modal quản lý danh mục
   const [categoriesOrder, setCategoriesOrder] = useState([]); // Thứ tự danh mục
@@ -329,20 +366,7 @@ const OnePageMechanic = () => {
   const [selectedTag, setSelectedTag] = useState('Tất cả');
 
   // --- FIREBASE AUTH & SYNC ---
-  useEffect(() => { 
-      const initAuth = async () => { 
-          try { 
-              await signInAnonymously(auth); 
-              setAuthStatus('logged-in'); 
-          } catch (error) { 
-              console.error(error); 
-              setAuthStatus('error'); 
-          } 
-      }; 
-      initAuth(); 
-      const u = onAuthStateChanged(auth, setUser); 
-      return () => u(); 
-  }, []);
+  useEffect(() => { const initAuth = async () => { try { await signInAnonymously(auth); setAuthStatus('logged-in'); } catch (error) { console.error(error); setAuthStatus('error'); } }; initAuth(); const u = onAuthStateChanged(auth, setUser); return () => u(); }, []);
   
   useEffect(() => {
     if (!user) return;
