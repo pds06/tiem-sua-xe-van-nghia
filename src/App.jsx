@@ -31,7 +31,10 @@ import {
   Loader,
   Database,
   ShieldAlert,
-  Copy
+  Copy,
+  ZoomIn,
+  Video,
+  PlayCircle
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
@@ -91,8 +94,103 @@ const EditableText = ({ isAdminMode, value, onChange, className, placeholder, mu
   );
 };
 
+// --- COMPONENT ITEM DETAIL MODAL ---
+const ItemDetailModal = ({ item, onClose }) => {
+    if (!item) return null;
+    
+    // Lấy ảnh đầu tiên (vì giờ chỉ có 1 ảnh) hoặc fallback cũ
+    const displayImage = (item.images && item.images.length > 0) ? item.images[0] : (item.iconUrl || item.imageFile);
+    const displayVideo = item.videoUrl;
+
+    return (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+            <div 
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-zoom-in flex flex-col max-h-[90vh]" 
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Media Header */}
+                <div className="relative h-64 bg-black shrink-0 flex items-center justify-center overflow-hidden">
+                    {displayVideo ? (
+                        <iframe 
+                            src={displayVideo.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')} 
+                            title="Video" 
+                            className="w-full h-full" 
+                            frameBorder="0" 
+                            allowFullScreen
+                        ></iframe>
+                    ) : displayImage ? (
+                        <img src={displayImage} alt={item.name} className="w-full h-full object-contain" />
+                    ) : (
+                         <div className="flex flex-col items-center text-gray-500">
+                            {item.price ? <ImageIcon size={64} /> : <Wrench size={64}/>}
+                            <span className="text-xs mt-2">Không có ảnh/video</span>
+                         </div>
+                    )}
+                    <button 
+                        onClick={onClose} 
+                        className="absolute top-3 right-3 bg-black/40 text-white p-2 rounded-full hover:bg-black/60 transition backdrop-blur-md z-10"
+                    >
+                        <X size={20}/>
+                    </button>
+                </div>
+
+                <div className="p-6 overflow-y-auto">
+                    <h3 className="text-2xl font-bold text-slate-900 mb-2">{item.name}</h3>
+                    
+                    {(!item.variants || item.variants.length === 0) && (
+                        <div className="text-xl font-bold text-orange-600 mb-4 bg-orange-50 inline-block px-3 py-1 rounded-lg">
+                            {item.price}
+                        </div>
+                    )}
+
+                    {item.desc && (
+                        <div className="mb-6">
+                            <h4 className="text-sm font-bold text-gray-500 uppercase mb-1">Mô tả</h4>
+                            <p className="text-gray-700">{item.desc}</p>
+                        </div>
+                    )}
+
+                    {item.variants && item.variants.length > 0 && (
+                        <div className="mb-6">
+                             <h4 className="text-sm font-bold text-gray-500 uppercase mb-2">Bảng giá chi tiết</h4>
+                             <div className="bg-gray-50 rounded-lg p-3 space-y-2 border border-gray-100">
+                                {item.variants.map((v, i) => (
+                                    <div key={i} className="flex justify-between items-center border-b border-gray-200 last:border-0 pb-2 last:pb-0">
+                                        <span className="font-medium text-slate-700">{v.name}</span>
+                                        <span className="font-bold text-orange-600">{v.price}</span>
+                                    </div>
+                                ))}
+                             </div>
+                        </div>
+                    )}
+
+                    {item.tags && item.tags.length > 0 && (
+                        <div className="mb-4">
+                            <div className="flex flex-wrap gap-2">
+                                {item.tags.map((tag, i) => (
+                                    <span key={i} className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
+                                        <Tag size={12}/> {tag}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {item.stock !== undefined && (
+                        <div className={`text-sm font-bold mb-6 flex items-center gap-2 ${item.stock ? 'text-green-600' : 'text-red-500'}`}>
+                            {item.stock ? <CheckCircle size={18}/> : <AlertCircle size={18}/>}
+                            {item.stock ? 'Sản phẩm còn hàng' : 'Tạm hết hàng'}
+                        </div>
+                    )}
+
+                    <button onClick={onClose} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 shadow-lg active:scale-95 transition">Đóng</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const OnePageMechanic = () => {
-  // --- STATE QUẢN LÝ CHẾ ĐỘ ---
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [adminPass, setAdminPass] = useState('');
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -102,8 +200,8 @@ const OnePageMechanic = () => {
   const [saveStatus, setSaveStatus] = useState('idle');
   const [authStatus, setAuthStatus] = useState('checking');
   const [permissionError, setPermissionError] = useState(false);
+  const [viewItem, setViewItem] = useState(null);
 
-  // --- STATE DỮ LIỆU ---
   const [activeTab, setActiveTab] = useState('services');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [bookingData, setBookingData] = useState({ name: '', phone: '', bike: '', service: '', time: '' });
@@ -125,15 +223,15 @@ const OnePageMechanic = () => {
   };
 
   const defaultServices = [
-    { id: 1, name: "Thay nhớt Motul/Castrol", iconUrl: null, desc: "Nhớt chính hãng, miễn phí công thay.", variants: [{ name: "Xe Số", price: "120.000đ" }, { name: "Xe Tay Ga", price: "140.000đ" }] },
-    { id: 2, name: "Vệ sinh nồi xe tay ga", price: "150.000đ", iconUrl: null, desc: "Khắc phục rung đầu, lì máy, hao xăng.", variants: [] },
-    { id: 3, name: "Vá lốp không ruột", price: "30.000đ / lỗ", iconUrl: null, desc: "Vá nấm chuẩn kỹ thuật, không hại lốp.", variants: [] }
+    { id: 1, name: "Thay nhớt Motul/Castrol", images: [], desc: "Nhớt chính hãng, miễn phí công thay.", variants: [{ name: "Xe Số", price: "120.000đ" }, { name: "Xe Tay Ga", price: "140.000đ" }] },
+    { id: 2, name: "Vệ sinh nồi xe tay ga", price: "150.000đ", images: [], desc: "Khắc phục rung đầu, lì máy, hao xăng.", variants: [] },
+    { id: 3, name: "Vá lốp không ruột", price: "30.000đ / lỗ", images: [], desc: "Vá nấm chuẩn kỹ thuật, không hại lốp.", variants: [] }
   ];
 
   const defaultParts = [
-    { id: 1, name: "Lốp Michelin City Grip", price: "850.000đ", img: "⚫", stock: true, imageFile: null, tags: ["Lốp", "Michelin"] },
-    { id: 2, name: "Nhớt Motul Scooter", price: "160.000đ", img: "🛢️", stock: true, imageFile: null, tags: ["Nhớt", "Tay Ga"] },
-    { id: 3, name: "Gương gù CRG", price: "250.000đ", img: "🔍", stock: false, imageFile: null, tags: ["Kiểng"] },
+    { id: 1, name: "Lốp Michelin City Grip", price: "850.000đ", stock: true, images: [], tags: ["Lốp", "Michelin"] },
+    { id: 2, name: "Nhớt Motul Scooter", price: "160.000đ", stock: true, images: [], tags: ["Nhớt", "Tay Ga"] },
+    { id: 3, name: "Gương gù CRG", price: "250.000đ", stock: false, images: [], tags: ["Kiểng"] },
   ];
 
   const [shopInfo, setShopInfo] = useState(defaultShopInfo);
@@ -142,29 +240,18 @@ const OnePageMechanic = () => {
   const [bookings, setBookings] = useState([]);
   const [user, setUser] = useState(null);
 
-  // --- FIREBASE AUTH ---
+  // --- FIREBASE AUTH & READ ---
   useEffect(() => {
     const initAuth = async () => {
-        try {
-            await signInAnonymously(auth);
-            setAuthStatus('logged-in');
-        } catch (error) {
-            console.error("Lỗi đăng nhập:", error);
-            setAuthStatus('error');
-        }
+        try { await signInAnonymously(auth); setAuthStatus('logged-in'); } catch (error) { console.error("Lỗi đăng nhập:", error); setAuthStatus('error'); }
     };
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-        if(u) setAuthStatus('logged-in');
-        setUser(u);
-    });
+    const unsubscribe = onAuthStateChanged(auth, (u) => { if(u) setAuthStatus('logged-in'); setUser(u); });
     return () => unsubscribe();
   }, []);
 
-  // --- FIREBASE READ ---
   useEffect(() => {
     if (!user) return;
-
     const paths = {
         shop: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'),
         services: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'),
@@ -173,38 +260,37 @@ const OnePageMechanic = () => {
     };
 
     const handleSnapshotError = (error) => {
-        console.error("Lỗi đọc dữ liệu:", error);
-        if (error.code === 'permission-denied') {
-            setPermissionError(true);
+        if (error.code === 'permission-denied') setPermissionError(true);
+    };
+
+    const unsubShop = onSnapshot(paths.shop, (docSnap) => { if (docSnap.exists()) setShopInfo(prev => ({ ...prev, ...docSnap.data() })); }, handleSnapshotError);
+    // MIGRATION: Đảm bảo dữ liệu cũ vẫn chạy tốt
+    const unsubServices = onSnapshot(paths.services, (docSnap) => { 
+        if (docSnap.exists()) {
+            const data = docSnap.data().items || [];
+            const migrated = data.map(item => ({
+                ...item,
+                images: item.images || (item.iconUrl ? [item.iconUrl] : [])
+            }));
+            setServices(migrated); 
         }
-    };
-
-    const unsubShop = onSnapshot(paths.shop, (docSnap) => {
-        if (docSnap.exists()) setShopInfo(prev => ({ ...prev, ...docSnap.data() }));
     }, handleSnapshotError);
-
-    const unsubServices = onSnapshot(paths.services, (docSnap) => {
-        if (docSnap.exists()) setServices(docSnap.data().items || []);
+    const unsubParts = onSnapshot(paths.parts, (docSnap) => { 
+        if (docSnap.exists()) {
+            const data = docSnap.data().items || [];
+            const migrated = data.map(item => ({
+                ...item,
+                images: item.images || (item.imageFile ? [item.imageFile] : [])
+            }));
+            setParts(migrated); 
+        }
     }, handleSnapshotError);
+    const unsubBookings = onSnapshot(paths.bookings, (docSnap) => { if (docSnap.exists()) setBookings(docSnap.data().items || []); setIsDataLoaded(true); }, handleSnapshotError);
 
-    const unsubParts = onSnapshot(paths.parts, (docSnap) => {
-        if (docSnap.exists()) setParts(docSnap.data().items || []);
-    }, handleSnapshotError);
-
-    const unsubBookings = onSnapshot(paths.bookings, (docSnap) => {
-        if (docSnap.exists()) setBookings(docSnap.data().items || []);
-        setIsDataLoaded(true);
-    }, handleSnapshotError);
-
-    return () => {
-        unsubShop();
-        unsubServices();
-        unsubParts();
-        unsubBookings();
-    };
+    return () => { unsubShop(); unsubServices(); unsubParts(); unsubBookings(); };
   }, [user]);
 
-  // --- FIREBASE WRITE (AUTO SAVE) ---
+  // --- FIREBASE WRITE ---
   const saveDataToFirebase = async (collectionName, data) => {
       if (!isDataLoaded || !user) return;
       setSaveStatus('saving');
@@ -212,22 +298,14 @@ const OnePageMechanic = () => {
           await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', collectionName), data);
           setSaveStatus('idle');
       } catch (error) {
-          console.error("Lỗi lưu tự động:", error);
-          if (error.code === 'permission-denied') {
-              setPermissionError(true);
-              setSaveStatus('permission-denied');
-          } else {
-              setSaveStatus('error');
-          }
+          if (error.code === 'permission-denied') { setPermissionError(true); setSaveStatus('permission-denied'); } else { setSaveStatus('error'); }
       }
   };
 
-  // --- FORCE SAVE FUNCTION (Dùng cho nút Lưu & Thoát) ---
   const forceSaveAll = async () => {
       if (!user) return;
       setSaveStatus('saving');
       try {
-          // Lưu đồng thời tất cả các mục
           await Promise.all([
               setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'), shopInfo),
               setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'), { items: services }),
@@ -235,38 +313,18 @@ const OnePageMechanic = () => {
               setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'bookings_list'), { items: bookings })
           ]);
           setSaveStatus('idle');
-          setIsAdminMode(false); // Chỉ thoát khi đã lưu xong
-          alert("✅ Đã lưu dữ liệu thành công lên đám mây!");
+          setIsAdminMode(false); 
+          alert("✅ Đã lưu dữ liệu thành công!");
       } catch (error) {
-          console.error("Lỗi lưu thủ công:", error);
           setSaveStatus('error');
-          alert(`❌ Lỗi lưu dữ liệu: ${error.message}\n\nCó thể do:\n1. Ảnh quá nặng (tổng > 1MB)\n2. Chưa mở quyền Firebase Rules.`);
+          alert(`❌ Lỗi lưu: ${error.message}`);
       }
   };
 
-  useEffect(() => {
-      if (!isDataLoaded) return;
-      const timer = setTimeout(() => saveDataToFirebase('shop_info', shopInfo), 2000);
-      return () => clearTimeout(timer);
-  }, [shopInfo, isDataLoaded, user]);
-
-  useEffect(() => {
-      if (!isDataLoaded) return;
-      const timer = setTimeout(() => saveDataToFirebase('services_list', { items: services }), 2000);
-      return () => clearTimeout(timer);
-  }, [services, isDataLoaded, user]);
-
-  useEffect(() => {
-      if (!isDataLoaded) return;
-      const timer = setTimeout(() => saveDataToFirebase('parts_list', { items: parts }), 2000);
-      return () => clearTimeout(timer);
-  }, [parts, isDataLoaded, user]);
-
-  useEffect(() => {
-      if (!isDataLoaded) return;
-      const timer = setTimeout(() => saveDataToFirebase('bookings_list', { items: bookings }), 2000);
-      return () => clearTimeout(timer);
-  }, [bookings, isDataLoaded, user]);
+  useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => saveDataToFirebase('shop_info', shopInfo), 2000); return () => clearTimeout(t); }, [shopInfo, isDataLoaded, user]);
+  useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => saveDataToFirebase('services_list', { items: services }), 2000); return () => clearTimeout(t); }, [services, isDataLoaded, user]);
+  useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => saveDataToFirebase('parts_list', { items: parts }), 2000); return () => clearTimeout(t); }, [parts, isDataLoaded, user]);
+  useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => saveDataToFirebase('bookings_list', { items: bookings }), 2000); return () => clearTimeout(t); }, [bookings, isDataLoaded, user]);
 
   useEffect(() => { document.title = shopInfo.name || "Tiệm Sửa Xe"; }, [shopInfo.name]);
 
@@ -274,57 +332,79 @@ const OnePageMechanic = () => {
   const uniqueTags = ['Tất cả', ...new Set(parts.flatMap(part => part.tags || []))];
   const filteredParts = selectedTag === 'Tất cả' ? parts : parts.filter(part => part.tags && part.tags.includes(selectedTag));
 
-  // --- HÀM XỬ LÝ ẢNH (NÉN ẢNH CHẤT LƯỢNG CAO HƠN - 800px, 0.8) ---
-  const handleImageUpload = (e, targetState, setTargetState, fieldName, itemId = null) => {
+  // --- HÀM XỬ LÝ ẢNH (GHI ĐÈ ẢNH CŨ - 1 ẢNH DUY NHẤT) ---
+  const handleImageUpload = (e, list, setList, itemId) => {
     const file = e.target.files[0];
     if (file) {
-      // Bỏ giới hạn size đầu vào, để canvas tự nén
       const reader = new FileReader();
       reader.onload = (event) => {
         const img = new Image();
         img.onload = () => {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            
-            // TĂNG KÍCH THƯỚC LÊN 800px (Rõ hơn)
-            const MAX_WIDTH = 800; 
-            const MAX_HEIGHT = 800;
-            let width = img.width;
-            let height = img.height;
-
-            if (width > height) {
-                if (width > MAX_WIDTH) {
-                    height *= MAX_WIDTH / width;
-                    width = MAX_WIDTH;
-                }
-            } else {
-                if (height > MAX_HEIGHT) {
-                    width *= MAX_HEIGHT / height;
-                    height = MAX_HEIGHT;
-                }
-            }
-
-            canvas.width = width;
-            canvas.height = height;
+            const MAX_WIDTH = 800; const MAX_HEIGHT = 800;
+            let width = img.width; let height = img.height;
+            if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
+            canvas.width = width; canvas.height = height;
             ctx.drawImage(img, 0, 0, width, height);
-            
-            // TĂNG CHẤT LƯỢNG LÊN 0.8 (Đẹp hơn)
             const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
 
-            if (itemId !== null) {
-                const updatedList = targetState.map(item => item.id === itemId ? { ...item, [fieldName]: compressedDataUrl } : item);
-                setTargetState(updatedList);
-            } else { 
-                setTargetState({ ...targetState, [fieldName]: compressedDataUrl }); 
-            }
-        };
-        img.onerror = () => {
-            alert("Không thể đọc file ảnh này.");
+            const updatedList = list.map(item => {
+                if (item.id === itemId) {
+                    // Luôn ghi đè thành mảng có 1 phần tử
+                    return { ...item, images: [compressedDataUrl] };
+                }
+                return item;
+            });
+            setList(updatedList);
         };
         img.src = event.target.result;
       };
       reader.readAsDataURL(file);
     }
+  };
+  
+  const handleLogoUpload = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+              const img = new Image();
+              img.onload = () => {
+                  const canvas = document.createElement('canvas');
+                  const ctx = canvas.getContext('2d');
+                  const MAX_SIZE = 500;
+                  let width = img.width; let height = img.height;
+                  if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } } else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
+                  canvas.width = width; canvas.height = height;
+                  ctx.drawImage(img, 0, 0, width, height);
+                  setShopInfo(prev => ({...prev, logoUrl: canvas.toDataURL('image/jpeg', 0.8)}));
+              }
+              img.src = ev.target.result;
+          }
+          reader.readAsDataURL(file);
+      }
+  }
+
+  // --- HÀM XÓA ẢNH (RESET VỀ MẶC ĐỊNH) ---
+  const handleRemoveMedia = (list, setList, itemId) => {
+      if(window.confirm('Bạn muốn xóa ảnh/video này?')) {
+          const updatedList = list.map(item => 
+              item.id === itemId ? { ...item, images: [], videoUrl: null } : item
+          );
+          setList(updatedList);
+      }
+  };
+
+  // --- HÀM THÊM VIDEO ---
+  const handleAddVideo = (list, setList, itemId) => {
+      const url = prompt("Nhập link Youtube hoặc link video (mp4):");
+      if (url) {
+          const updatedList = list.map(item => 
+              item.id === itemId ? { ...item, videoUrl: url } : item
+          );
+          setList(updatedList);
+      }
   };
 
   const moveItem = (index, direction, list, setList) => {
@@ -333,83 +413,25 @@ const OnePageMechanic = () => {
     else if (direction === 'down' && index < list.length - 1) { [newList[index], newList[index + 1]] = [newList[index + 1], newList[index]]; }
     setList(newList);
   };
-
-  const addTag = (partId) => {
-    const tag = prompt("Nhập tên nhóm:");
-    if (tag) {
-        const cleanTag = tag.trim(); if(!cleanTag) return;
-        const newParts = parts.map(p => {
-            if (p.id === partId) { const currentTags = p.tags || []; if (currentTags.includes(cleanTag)) return p; return { ...p, tags: [...currentTags, cleanTag] }; }
-            return p;
-        });
-        setParts(newParts);
-    }
-  };
-
-  const removeTag = (partId, tagIndex) => {
-      const newParts = parts.map(p => { if (p.id === partId && p.tags) { return { ...p, tags: p.tags.filter((_, i) => i !== tagIndex) }; } return p; });
-      setParts(newParts);
-  };
-
-  const handleChangePassword = () => {
-      if (newPassword && newPassword.length > 0) {
-          if (window.confirm(`Đổi mật khẩu thành: ${newPassword}?`)) {
-              setShopInfo(prev => ({...prev, adminPassword: newPassword}));
-              setNewPassword('');
-              alert("Đổi mật khẩu thành công!");
-          }
-      }
-  };
-
-  const handleLogin = () => {
-    const currentPass = shopInfo.adminPassword || "1234";
-    if (adminPass === currentPass) { setIsAdminMode(true); setShowLoginModal(false); setAdminPass(''); } else { alert('Sai mật khẩu!'); }
-  };
-
+  const addTag = (partId) => { const tag = prompt("Nhập tên nhóm:"); if (tag) { const cleanTag = tag.trim(); if(!cleanTag) return; const newParts = parts.map(p => { if (p.id === partId) { const currentTags = p.tags || []; if (currentTags.includes(cleanTag)) return p; return { ...p, tags: [...currentTags, cleanTag] }; } return p; }); setParts(newParts); } };
+  const removeTag = (partId, tagIndex) => { const newParts = parts.map(p => { if (p.id === partId && p.tags) { return { ...p, tags: p.tags.filter((_, i) => i !== tagIndex) }; } return p; }); setParts(newParts); };
+  const handleChangePassword = () => { if (newPassword && newPassword.length > 0) { if (window.confirm(`Đổi mật khẩu thành: ${newPassword}?`)) { setShopInfo(prev => ({...prev, adminPassword: newPassword})); setNewPassword(''); alert("Đổi mật khẩu thành công!"); } } };
+  const handleLogin = () => { const currentPass = shopInfo.adminPassword || "1234"; if (adminPass === currentPass) { setIsAdminMode(true); setShowLoginModal(false); setAdminPass(''); } else { alert('Sai mật khẩu!'); } };
   const deleteBooking = (id) => { if(window.confirm("Xóa?")) setBookings(bookings.filter(b => b.id !== id)); };
   const createCalendarReminder = () => { window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent("Bảo dưỡng xe tại " + shopInfo.name)}`, '_blank'); };
-  const addNewService = () => setServices([...services, { id: Date.now(), name: "Dịch vụ mới", price: "0đ", iconUrl: null, desc: "Mô tả...", variants: [] }]);
+  const addNewService = () => setServices([...services, { id: Date.now(), name: "Dịch vụ mới", price: "0đ", images: [], videoUrl: null, desc: "Mô tả...", variants: [] }]);
   const deleteService = (id) => { if(window.confirm("Xóa?")) setServices(services.filter(s => s.id !== id)); };
-  const addNewPart = () => setParts([...parts, { id: Date.now(), name: "Phụ tùng mới", price: "0đ", img: "📦", stock: true, tags: [] }]);
-
-  const rulesSnippet = `rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
-    }
-  }
-}`;
+  const addNewPart = () => setParts([...parts, { id: Date.now(), name: "Phụ tùng mới", price: "0đ", img: "📦", stock: true, images: [], videoUrl: null, tags: [] }]);
+  const rulesSnippet = `rules_version = '2'; service cloud.firestore { match /databases/{database}/documents { match /{document=**} { allow read, write: if true; } } }`;
 
   return (
     <div className={`min-h-screen bg-gray-50 text-gray-800 font-sans pb-20 md:pb-0 relative ${isAdminMode ? 'mb-24' : ''}`}>
       
-      {/* MODAL LỖI QUYỀN TRUY CẬP */}
+      {/* MODAL & UI ELEMENTS */}
+      <ItemDetailModal item={viewItem} onClose={() => setViewItem(null)} />
       {permissionError && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-slide-up">
-                <div className="bg-red-600 text-white p-4 flex items-center gap-2">
-                    <ShieldAlert size={24}/>
-                    <h2 className="font-bold text-lg">CẦN CẤU HÌNH FIREBASE RULES</h2>
-                </div>
-                <div className="p-6 space-y-4">
-                    <p className="text-gray-700">Web không thể lưu dữ liệu vì Firebase đang chặn quyền ghi. Hãy làm theo các bước sau:</p>
-                    <ol className="list-decimal pl-5 text-sm space-y-2 text-gray-600">
-                        <li>Truy cập <a href="https://console.firebase.google.com/" target="_blank" className="text-blue-600 underline font-bold">Firebase Console</a> {'>'} Chọn dự án <strong>van-nghia-moto</strong>.</li>
-                        <li>Ở menu trái, chọn <strong>Firestore Database</strong> {'>'} Tab <strong>Rules</strong>.</li>
-                        <li>Dán đoạn code dưới đây vào và bấm Publish:</li>
-                    </ol>
-                    
-                    <div className="bg-slate-900 text-green-400 p-4 rounded-lg font-mono text-xs md:text-sm overflow-x-auto relative group">
-                        <pre>{rulesSnippet}</pre>
-                        <button onClick={() => navigator.clipboard.writeText(rulesSnippet)} className="absolute top-2 right-2 bg-white/20 hover:bg-white/40 text-white px-2 py-1 rounded text-xs flex items-center gap-1"><Copy size={12}/> Copy</button>
-                    </div>
-
-                    <div className="flex justify-end pt-4">
-                        <button onClick={() => window.location.reload()} className="bg-red-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-red-700">Đã sửa xong, tải lại trang</button>
-                    </div>
-                </div>
-            </div>
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/80">
+            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl"><h2 className="text-red-600 font-bold mb-2">CẦN CẤU HÌNH FIREBASE RULES</h2><pre className="bg-gray-900 text-green-400 p-2 text-xs overflow-auto rounded">{rulesSnippet}</pre><button onClick={() => window.location.reload()} className="mt-4 bg-red-600 text-white px-4 py-2 rounded">Đã sửa xong</button></div>
         </div>
       )}
 
@@ -418,26 +440,12 @@ service cloud.firestore {
         <div className="w-full px-4 py-3 flex justify-between items-center">
           <div className="flex items-center space-x-3 flex-1">
             <div className="relative group shrink-0">
-                {/* LOGO: HIỂN THỊ TỰ NHIÊN, BỎ KHUNG, BỎ BO TRÒN */}
-                {shopInfo.logoUrl ? (
-                    <img src={shopInfo.logoUrl} alt="Logo" className="h-16 w-auto object-contain"/>
-                ) : (
-                    <div className="h-16 w-16 bg-orange-500 rounded flex items-center justify-center text-xl font-bold">TM</div>
-                )}
-                {isAdminMode && (
-                    <label className="absolute inset-0 flex items-center justify-center bg-black/50 cursor-pointer opacity-0 group-hover:opacity-100 transition rounded">
-                        <Upload size={18} className="text-white"/>
-                        <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, shopInfo, setShopInfo, 'logoUrl')}/>
-                    </label>
-                )}
+                {shopInfo.logoUrl ? <img src={shopInfo.logoUrl} alt="Logo" className="h-16 w-auto object-contain cursor-pointer" onClick={() => setViewItem({ name: 'Logo Quán', images: [shopInfo.logoUrl] })}/> : <div className="h-16 w-16 bg-orange-500 rounded flex items-center justify-center text-xl font-bold">TM</div>}
+                {isAdminMode && <label className="absolute inset-0 flex items-center justify-center bg-black/50 cursor-pointer rounded opacity-0 group-hover:opacity-100 transition"><Upload size={18} className="text-white"/><input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload}/></label>}
             </div>
             <div className="flex-1 max-w-md ml-2 overflow-hidden">
-                <div className="font-bold text-lg leading-tight truncate">
-                    <EditableText isAdminMode={isAdminMode} value={shopInfo.name} onChange={(val) => setShopInfo({...shopInfo, name: val})} className="font-bold"/>
-                </div>
-                <div className="text-xs text-gray-400 hidden md:block truncate">
-                    <EditableText isAdminMode={isAdminMode} value={shopInfo.tagline} onChange={(val) => setShopInfo({...shopInfo, tagline: val})}/>
-                </div>
+                <div className="font-bold text-lg leading-tight truncate"><EditableText isAdminMode={isAdminMode} value={shopInfo.name} onChange={(val) => setShopInfo({...shopInfo, name: val})} className="font-bold"/></div>
+                <div className="text-xs text-gray-400 hidden md:block truncate"><EditableText isAdminMode={isAdminMode} value={shopInfo.tagline} onChange={(val) => setShopInfo({...shopInfo, tagline: val})}/></div>
             </div>
           </div>
           <nav className="hidden md:flex space-x-6 text-sm font-medium">
@@ -447,14 +455,7 @@ service cloud.firestore {
           </nav>
           <button className="md:hidden" onClick={() => setIsMenuOpen(!isMenuOpen)}>{isMenuOpen ? <X size={24} /> : <Menu size={24} />}</button>
         </div>
-
-        {isMenuOpen && (
-          <div className="md:hidden bg-slate-800 px-4 py-2 space-y-2">
-            <button onClick={() => {setActiveTab('services'); setIsMenuOpen(false)}} className="block w-full text-left py-2 border-b border-slate-700">Dịch Vụ</button>
-            <button onClick={() => {setActiveTab('parts'); setIsMenuOpen(false)}} className="block w-full text-left py-2 border-b border-slate-700">Phụ Tùng</button>
-            <button onClick={() => {setActiveTab('reminder'); setIsMenuOpen(false)}} className="block w-full text-left py-2">Nhắc Lịch</button>
-          </div>
-        )}
+        {isMenuOpen && <div className="md:hidden bg-slate-800 px-4 py-2 space-y-2"><button onClick={() => {setActiveTab('services'); setIsMenuOpen(false)}} className="block w-full text-left py-2 border-b border-slate-700">Dịch Vụ</button><button onClick={() => {setActiveTab('parts'); setIsMenuOpen(false)}} className="block w-full text-left py-2 border-b border-slate-700">Phụ Tùng</button><button onClick={() => {setActiveTab('reminder'); setIsMenuOpen(false)}} className="block w-full text-left py-2">Nhắc Lịch</button></div>}
       </header>
 
       {/* ADMIN PANEL */}
@@ -463,48 +464,15 @@ service cloud.firestore {
             <div className="w-full px-4">
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 gap-4">
                     <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2">
-                            <List className="text-orange-500"/>
-                            <h2 className="font-bold text-xl">Quản lý & Trạng thái</h2>
-                        </div>
-                        
+                        <div className="flex items-center gap-2"><List className="text-orange-500"/><h2 className="font-bold text-xl">Quản lý & Trạng thái</h2></div>
                         <div className="flex gap-2 text-xs font-bold mt-1">
-                            {authStatus === 'checking' && <span className="text-gray-500">Đang kết nối...</span>}
-                            {authStatus === 'logged-in' && <span className="text-green-600 flex items-center gap-1"><Wifi size={12}/> Đã kết nối Cloud</span>}
-                            {authStatus === 'error' && <span className="text-red-500 flex items-center gap-1"><ShieldAlert size={12}/> Lỗi kết nối Auth</span>}
-
+                            {authStatus === 'logged-in' ? <span className="text-green-600 flex items-center gap-1"><Wifi size={12}/> Online</span> : <span className="text-red-500 flex items-center gap-1"><ShieldAlert size={12}/> Offline</span>}
                             <span className="text-gray-300">|</span>
-
-                            {saveStatus === 'idle' && <span className="text-green-600">Dữ liệu an toàn</span>}
-                            {saveStatus === 'saving' && <span className="text-orange-500 animate-pulse">Đang lưu lên mây...</span>}
-                            {saveStatus === 'error' && <span className="text-red-500">Lỗi lưu! (Kiểm tra ảnh)</span>}
-                            {saveStatus === 'permission-denied' && (
-                                <span className="text-red-600 bg-red-100 px-2 py-0.5 rounded animate-pulse flex items-center gap-1 cursor-pointer" onClick={() => setPermissionError(true)}>
-                                    <ShieldAlert size={12}/> LỖI QUYỀN (Bấm để xem cách sửa)
-                                </span>
-                            )}
+                            {saveStatus === 'saving' ? <span className="text-orange-500 animate-pulse">Đang lưu...</span> : <span className="text-green-600">Sẵn sàng</span>}
                         </div>
                     </div>
-
-                    <div className="flex items-center gap-2 bg-gray-100 p-2 rounded-lg mt-2 lg:mt-0">
-                        <Lock size={16} className="text-gray-500"/>
-                        <input type="text" placeholder="Mật khẩu mới..." className="bg-transparent text-sm outline-none w-32" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}/>
-                        <button onClick={handleChangePassword} className="bg-slate-900 text-white text-xs px-2 py-1 rounded hover:bg-slate-700">Đổi</button>
-                    </div>
+                    <div className="flex items-center gap-2 bg-gray-100 p-2 rounded-lg mt-2 lg:mt-0"><Lock size={16} className="text-gray-500"/><input type="text" placeholder="Mật khẩu mới..." className="bg-transparent text-sm outline-none w-32" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}/><button onClick={handleChangePassword} className="bg-slate-900 text-white text-xs px-2 py-1 rounded hover:bg-slate-700">Đổi</button></div>
                 </div>
-                {bookings.length === 0 ? <p className="text-gray-500 italic text-sm">Chưa có khách đặt lịch.</p> : (
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 max-h-60 overflow-y-auto">
-                        {bookings.map((b) => (
-                            <div key={b.id} className="border border-gray-200 p-3 rounded-lg shadow-sm bg-gray-50 relative">
-                                <button onClick={() => deleteBooking(b.id)} className="absolute top-2 right-2 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
-                                <div className="font-bold text-slate-800">{b.name} <span className="text-gray-500 font-normal">- {b.phone}</span></div>
-                                <div className="text-sm text-gray-600 mt-1"><span className="font-semibold text-orange-600">{b.bike}</span> • {b.time}</div>
-                                <div className="text-sm text-gray-700 mt-1 bg-white p-1 rounded border border-gray-100">"{b.service}"</div>
-                                <div className="text-xs text-gray-400 mt-1 text-right">{b.created_at}</div>
-                            </div>
-                        ))}
-                    </div>
-                )}
             </div>
         </div>
       )}
@@ -514,19 +482,14 @@ service cloud.firestore {
         <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
         <div className="relative z-10 w-full px-4 mx-auto">
           <div className="text-orange-500 font-bold uppercase tracking-wider text-sm mb-2">{shopInfo.tagline}</div>
-          <h2 className="text-3xl md:text-5xl font-extrabold mb-4">
-             <EditableText isAdminMode={isAdminMode} value={shopInfo.heroTitle} onChange={(val) => setShopInfo({...shopInfo, heroTitle: val})} className="bg-transparent text-white text-center w-full block" multiline={true} style={{color: isAdminMode ? 'black' : 'white'}}/>
-          </h2>
-          <div className="text-gray-300 mb-6 max-w-4xl mx-auto">
-             <EditableText isAdminMode={isAdminMode} value={shopInfo.heroDesc} onChange={(val) => setShopInfo({...shopInfo, heroDesc: val})} className="bg-transparent text-gray-300 text-center w-full block text-sm md:text-lg" multiline={true} style={{color: isAdminMode ? 'black' : '#d1d5db'}}/>
-          </div>
+          <h2 className="text-3xl md:text-5xl font-extrabold mb-4"><EditableText isAdminMode={isAdminMode} value={shopInfo.heroTitle} onChange={(val) => setShopInfo({...shopInfo, heroTitle: val})} className="bg-transparent text-white text-center w-full block" multiline={true} style={{color: isAdminMode ? 'black' : 'white'}}/></h2>
+          <div className="text-gray-300 mb-6 max-w-4xl mx-auto"><EditableText isAdminMode={isAdminMode} value={shopInfo.heroDesc} onChange={(val) => setShopInfo({...shopInfo, heroDesc: val})} className="bg-transparent text-gray-300 text-center w-full block text-sm md:text-lg" multiline={true} style={{color: isAdminMode ? 'black' : '#d1d5db'}}/></div>
         </div>
       </div>
 
       {/* MAIN CONTENT AREA */}
       <main className="w-full px-4 md:px-8 lg:px-12 py-8">
-        
-        {/* SERVICES TAB - ĐÃ SỬA THÀNH DẠNG CARD DỌC ĐỂ ẢNH TO */}
+        {/* SERVICES TAB */}
         {activeTab === 'services' && (
           <div className="animate-fade-in">
             <div className="flex justify-between items-center mb-6 border-l-4 border-orange-500 pl-3">
@@ -535,61 +498,50 @@ service cloud.firestore {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
               {services.map((service, idx) => (
-                // Chuyển sang flex-col để ảnh nằm trên, nội dung nằm dưới
-                <div key={service.id} className={`bg-white p-0 rounded-xl shadow-sm border ${isAdminMode ? 'border-dashed border-orange-300' : 'border-gray-100'} hover:shadow-md transition relative group flex flex-col h-full overflow-hidden`}>
+                <div key={service.id} className={`bg-white p-3 rounded-xl shadow-sm border ${isAdminMode ? 'border-dashed border-orange-300' : 'border-gray-100'} hover:shadow-md transition relative group flex flex-row items-start gap-4 h-full ${!isAdminMode ? 'cursor-pointer hover:bg-orange-50/20' : ''}`} onClick={() => !isAdminMode && setViewItem(service)}>
                   {isAdminMode && (
                       <div className="absolute top-2 right-2 z-20 flex gap-1">
-                          <button onClick={() => moveItem(idx, 'up', services, setServices)} className="text-white hover:text-blue-300 p-1 bg-black/30 rounded-full backdrop-blur-sm" title="Lên"><ArrowUp size={14}/></button>
-                          <button onClick={() => moveItem(idx, 'down', services, setServices)} className="text-white hover:text-blue-300 p-1 bg-black/30 rounded-full backdrop-blur-sm" title="Xuống"><ArrowDown size={14}/></button>
-                          <button onClick={() => deleteService(service.id)} className="text-white hover:text-red-300 p-1 bg-red-500/80 rounded-full backdrop-blur-sm" title="Xóa"><Trash2 size={14}/></button>
+                          <button onClick={() => moveItem(idx, 'up', services, setServices)} className="text-white hover:text-blue-300 p-1 bg-black/30 rounded-full backdrop-blur-sm" title="Lên"><ArrowUp size={12}/></button>
+                          <button onClick={() => moveItem(idx, 'down', services, setServices)} className="text-white hover:text-blue-300 p-1 bg-black/30 rounded-full backdrop-blur-sm" title="Xuống"><ArrowDown size={12}/></button>
+                          <button onClick={() => deleteService(service.id)} className="text-white hover:text-red-300 p-1 bg-red-500/80 rounded-full backdrop-blur-sm" title="Xóa"><Trash2 size={12}/></button>
                       </div>
                   )}
-                  
-                  {/* KHUNG ẢNH TO - ASPECT SQUARE (VUÔNG) */}
-                  <div className="w-full aspect-square bg-gray-100 flex items-center justify-center text-4xl overflow-hidden relative group/icon">
-                       {service.iconUrl ? (
-                           <img src={service.iconUrl} alt="icon" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                  {/* QUẢN LÝ ẢNH DỊCH VỤ (ADMIN) */}
+                  <div className="w-20 h-20 bg-gray-100 rounded-lg shrink-0 overflow-hidden relative border border-gray-200 flex items-center justify-center">
+                       {service.videoUrl ? (
+                           <Video className="text-orange-500" size={32}/>
+                       ) : (service.images && service.images.length > 0) ? (
+                           <img src={service.images[0]} alt="icon" className="w-full h-full object-cover" />
                        ) : (
-                           <Wrench className="text-gray-400" size={48} />
+                           <Wrench className="text-gray-400" size={32} />
                        )}
-                       {isAdminMode && (
-                           <label className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover/icon:opacity-100 cursor-pointer transition">
-                               <Upload className="text-white" size={24}/>
-                               <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, services, setServices, 'iconUrl', service.id)}/>
-                           </label>
+                       
+                       {isAdminMode ? (
+                           <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition gap-2">
+                               <label className="cursor-pointer text-white hover:text-green-300" title="Tải ảnh mới"><Upload size={20}/><input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, services, setServices, service.id)}/></label>
+                               <button onClick={() => handleAddVideo(services, setServices, service.id)} className="text-white hover:text-blue-300" title="Dán Link Video"><Video size={20}/></button>
+                               {((service.images && service.images.length > 0) || service.videoUrl) && (
+                                   <button onClick={() => handleRemoveMedia(services, setServices, service.id)} className="text-red-400 hover:text-red-200 bg-white/10 p-1 rounded-full" title="Xóa ảnh/video"><Trash2 size={20}/></button>
+                               )}
+                           </div>
+                       ) : (
+                           <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"><ZoomIn className="text-white drop-shadow-md" size={20}/></div>
                        )}
                   </div>
-
-                  {/* NỘI DUNG DỊCH VỤ */}
-                  <div className="p-4 flex flex-col flex-1">
-                      <div className="flex justify-between items-start mb-2">
-                        <h4 className="font-bold text-slate-800 w-full text-base">
-                            <EditableText isAdminMode={isAdminMode} value={service.name} onChange={(val) => { const newS = [...services]; newS[idx].name = val; setServices(newS); }} className="font-bold w-full"/>
-                        </h4>
-                      </div>
-                      
-                      {(!service.variants || service.variants.length === 0) && (
-                         <div className="text-orange-600 font-bold text-lg mb-2">
-                            <EditableText isAdminMode={isAdminMode} value={service.price} onChange={(val) => { const newS = [...services]; newS[idx].price = val; setServices(newS); }}/>
-                         </div>
-                      )}
-
-                      <div className="text-sm text-gray-500 mb-2 flex-grow">
-                            <EditableText isAdminMode={isAdminMode} value={service.desc} onChange={(val) => { const newS = [...services]; newS[idx].desc = val; setServices(newS); }} multiline={true} className="w-full text-xs"/>
-                      </div>
-
+                  
+                  <div className="flex-1 flex flex-col min-h-[5rem]">
+                      <h4 className="font-bold text-slate-800 text-sm mb-1 leading-tight pr-6"><EditableText isAdminMode={isAdminMode} value={service.name} onChange={(val) => { const newS = [...services]; newS[idx].name = val; setServices(newS); }} className="font-bold w-full"/></h4>
+                      {(!service.variants || service.variants.length === 0) && <div className="text-orange-600 font-bold text-sm mb-1"><EditableText isAdminMode={isAdminMode} value={service.price} onChange={(val) => { const newS = [...services]; newS[idx].price = val; setServices(newS); }}/></div>}
+                      <div className="text-xs text-gray-500 mb-2 flex-grow line-clamp-2"><EditableText isAdminMode={isAdminMode} value={service.desc} onChange={(val) => { const newS = [...services]; newS[idx].desc = val; setServices(newS); }} multiline={true} className="w-full text-xs"/></div>
                       {(service.variants && service.variants.length > 0 || isAdminMode) && (
-                        <div className="mt-auto bg-gray-50 p-2 rounded text-sm space-y-2 border-t border-gray-100">
+                        <div className="mt-auto bg-gray-50 p-1.5 rounded text-xs space-y-1 border-t border-gray-100 w-full">
                             {service.variants?.map((variant, vIdx) => (
                                 <div key={vIdx} className="flex justify-between items-center border-b border-gray-200 last:border-0 pb-1 last:pb-0">
-                                    <div className="flex-1 flex gap-2">
-                                        <EditableText isAdminMode={isAdminMode} value={variant.name} onChange={(val) => { const newS = [...services]; newS[idx].variants[vIdx].name = val; setServices(newS); }} className="w-full text-gray-600"/>
-                                        <EditableText isAdminMode={isAdminMode} value={variant.price} onChange={(val) => { const newS = [...services]; newS[idx].variants[vIdx].price = val; setServices(newS); }} className="w-full font-bold text-orange-600 text-right"/>
-                                    </div>
-                                    {isAdminMode && <button onClick={() => { const newS = [...services]; newS[idx].variants = newS[idx].variants.filter((_, i) => i !== vIdx); setServices(newS); }} className="text-red-400 ml-2"><X size={14}/></button>}
+                                    <div className="flex-1 flex gap-1"><EditableText isAdminMode={isAdminMode} value={variant.name} onChange={(val) => { const newS = [...services]; newS[idx].variants[vIdx].name = val; setServices(newS); }} className="w-full text-gray-600"/><EditableText isAdminMode={isAdminMode} value={variant.price} onChange={(val) => { const newS = [...services]; newS[idx].variants[vIdx].price = val; setServices(newS); }} className="w-full font-bold text-orange-600 text-right"/></div>
+                                    {isAdminMode && <button onClick={() => { const newS = [...services]; newS[idx].variants = newS[idx].variants.filter((_, i) => i !== vIdx); setServices(newS); }} className="text-red-400 ml-1"><X size={12}/></button>}
                                 </div>
                             ))}
-                            {isAdminMode && <button onClick={() => { const newS = [...services]; if(!newS[idx].variants) newS[idx].variants = []; newS[idx].variants.push({name: 'Loại mới', price: '0đ'}); setServices(newS); }} className="text-xs text-blue-600 flex items-center gap-1 mt-1 hover:underline">+ Thêm loại giá</button>}
+                            {isAdminMode && <button onClick={() => { const newS = [...services]; if(!newS[idx].variants) newS[idx].variants = []; newS[idx].variants.push({name: 'Loại mới', price: '0đ'}); setServices(newS); }} className="text-[10px] text-blue-600 flex items-center gap-1 mt-1 hover:underline">+ Thêm loại</button>}
                         </div>
                       )}
                   </div>
@@ -606,32 +558,10 @@ service cloud.firestore {
                 <h3 className="text-xl font-bold uppercase">Phụ Tùng</h3>
                 {isAdminMode && <button onClick={addNewPart} className="bg-green-600 text-white px-3 py-1 rounded text-sm flex items-center gap-1 hover:bg-green-700"><Plus size={16}/> Thêm</button>}
             </div>
-
-            <div className="flex flex-wrap gap-2 mb-6">
-                <div className="flex items-center gap-1 mr-2 text-gray-500 text-sm">
-                    <Filter size={16}/> Lọc:
-                </div>
-                {uniqueTags.map((tag) => (
-                    <button 
-                        key={tag}
-                        onClick={() => setSelectedTag(tag)}
-                        className={`px-3 py-1 rounded-full text-sm font-medium transition ${
-                            selectedTag === tag 
-                            ? 'bg-orange-500 text-white shadow-md' 
-                            : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                        }`}
-                    >
-                        {tag}
-                    </button>
-                ))}
-            </div>
-
+            <div className="flex flex-wrap gap-2 mb-6"><div className="flex items-center gap-1 mr-2 text-gray-500 text-sm"><Filter size={16}/> Lọc:</div>{uniqueTags.map((tag) => (<button key={tag} onClick={() => setSelectedTag(tag)} className={`px-3 py-1 rounded-full text-sm font-medium transition ${selectedTag === tag ? 'bg-orange-500 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}>{tag}</button>))}</div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
-              {filteredParts.length === 0 ? (
-                  <div className="col-span-full text-center py-10 text-gray-400">Không tìm thấy sản phẩm nào thuộc nhóm "{selectedTag}".</div>
-              ) : (
-                filteredParts.map((part, idx) => (
-                    <div key={part.id} className={`bg-white rounded-xl shadow-sm overflow-hidden border ${isAdminMode ? 'border-dashed border-orange-300' : 'border-gray-100'} flex flex-col relative h-full group hover:shadow-lg transition-shadow duration-300`}>
+              {filteredParts.length === 0 ? <div className="col-span-full text-center py-10 text-gray-400">Không tìm thấy sản phẩm.</div> : filteredParts.map((part, idx) => (
+                    <div key={part.id} className={`bg-white rounded-xl shadow-sm overflow-hidden border ${isAdminMode ? 'border-dashed border-orange-300' : 'border-gray-100'} flex flex-col relative h-full group hover:shadow-lg transition-shadow duration-300 ${!isAdminMode ? 'cursor-pointer' : ''}`} onClick={() => !isAdminMode && setViewItem(part)}>
                     {isAdminMode && (
                         <div className="absolute top-2 right-2 z-20 flex gap-1">
                             <button onClick={() => moveItem(idx, 'up', parts, setParts)} className="text-white hover:text-blue-300 p-1 bg-black/30 rounded-full backdrop-blur-sm" title="Lên"><ArrowUp size={14}/></button>
@@ -639,57 +569,46 @@ service cloud.firestore {
                             <button onClick={() => {if(window.confirm('Xóa?')) setParts(parts.filter(p => p.id !== part.id))}} className="text-white hover:text-red-300 p-1 bg-red-500/80 rounded-full backdrop-blur-sm" title="Xóa"><Trash2 size={14}/></button>
                         </div>
                     )}
-                    
                     <div className="absolute top-2 left-2 z-20 flex flex-wrap gap-1 max-w-[70%]">
-                        {part.tags && part.tags.map((tag, tIdx) => (
-                            <span key={tIdx} className="bg-red-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm flex items-center gap-1 cursor-pointer hover:bg-red-700 backdrop-blur-sm" onClick={() => setSelectedTag(tag)}>
-                                {tag}
-                                {isAdminMode && <button onClick={(e) => { e.stopPropagation(); removeTag(part.id, tIdx); }} className="hover:text-black ml-1"><X size={10}/></button>}
-                            </span>
-                        ))}
-                        {isAdminMode && (
-                            <button onClick={() => addTag(part.id)} className="bg-blue-600/90 text-white text-[10px] px-1.5 py-0.5 rounded hover:bg-blue-700 flex items-center gap-1 shadow backdrop-blur-sm"><Plus size={10}/> Tag</button>
-                        )}
+                        {part.tags && part.tags.map((tag, tIdx) => (<span key={tIdx} className="bg-red-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm flex items-center gap-1 cursor-pointer hover:bg-red-700 backdrop-blur-sm" onClick={(e) => { e.stopPropagation(); setSelectedTag(tag); }}>{tag}{isAdminMode && <button onClick={(e) => { e.stopPropagation(); removeTag(part.id, tIdx); }} className="hover:text-black ml-1"><X size={10}/></button>}</span>))}
+                        {isAdminMode && <button onClick={() => addTag(part.id)} className="bg-blue-600/90 text-white text-[10px] px-1.5 py-0.5 rounded hover:bg-blue-700 flex items-center gap-1 shadow backdrop-blur-sm"><Plus size={10}/> Tag</button>}
                     </div>
-
-                    <div className="w-full aspect-square bg-gray-100 flex items-center justify-center text-4xl overflow-hidden relative group">
-                        {part.imageFile ? (
-                            <img src={part.imageFile} alt={part.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"/>
+                    {/* QUẢN LÝ ẢNH PHỤ TÙNG (ADMIN) */}
+                    <div className="w-full aspect-square bg-gray-100 flex items-center justify-center text-4xl overflow-hidden relative group/icon">
+                        {part.videoUrl ? (
+                            <Video className="text-orange-500" size={48}/>
+                        ) : (part.images && part.images.length > 0) ? (
+                            <img src={part.images[0]} alt={part.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"/>
                         ) : (
                             <ImageIcon className="text-gray-300" size={48}/>
                         )}
-                        {isAdminMode && (
-                            <label className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition">
-                                <Upload className="text-white" size={20}/>
-                                <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, parts, setParts, 'imageFile', part.id)}/>
-                            </label>
+                        
+                        {isAdminMode ? (
+                           <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover/icon:opacity-100 transition gap-2">
+                               <label className="cursor-pointer text-white hover:text-green-300" title="Tải ảnh mới"><Upload size={24}/><input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, parts, setParts, part.id)}/></label>
+                               <button onClick={() => handleAddVideo(parts, setParts, part.id)} className="text-white hover:text-blue-300" title="Dán Link Video"><Video size={24}/></button>
+                               {((part.images && part.images.length > 0) || part.videoUrl) && (
+                                   <button onClick={() => handleRemoveMedia(parts, setParts, part.id)} className="text-red-400 hover:text-red-200 bg-white/10 p-2 rounded-full mt-2" title="Xóa ảnh/video"><Trash2 size={24}/></button>
+                               )}
+                           </div>
+                        ) : (
+                           <div className="absolute inset-0 bg-black/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"><ZoomIn className="text-white drop-shadow-md" size={32}/></div>
                         )}
                     </div>
-                    
                     <div className="p-4 flex flex-col flex-1">
-                        <h4 className="font-semibold text-sm line-clamp-2 mb-2 flex-grow">
-                            <EditableText isAdminMode={isAdminMode} value={part.name} onChange={(val) => { const newP = [...parts]; newP[idx].name = val; setParts(newP); }}/>
-                        </h4>
+                        <h4 className="font-semibold text-sm line-clamp-2 mb-2 flex-grow"><EditableText isAdminMode={isAdminMode} value={part.name} onChange={(val) => { const newP = [...parts]; newP[idx].name = val; setParts(newP); }}/></h4>
                         <div className="mt-auto pt-2 flex justify-between items-end border-t border-gray-100">
-                            <span className="font-bold text-orange-600 text-lg">
-                                <EditableText isAdminMode={isAdminMode} value={part.price} onChange={(val) => { const newP = [...parts]; newP[idx].price = val; setParts(newP); }}/>
-                            </span>
-                            
+                            <span className="font-bold text-orange-600 text-lg"><EditableText isAdminMode={isAdminMode} value={part.price} onChange={(val) => { const newP = [...parts]; newP[idx].price = val; setParts(newP); }}/></span>
                             {isAdminMode ? (
-                                <label className="flex items-center gap-1 text-[10px] cursor-pointer bg-gray-100 px-2 py-1 rounded">
-                                    <input type="checkbox" checked={part.stock} onChange={(e) => { const newP = [...parts]; newP[idx].stock = e.target.checked; setParts(newP); }}/>
-                                    {part.stock ? "Còn hàng" : "Hết"}
-                                </label>
+                                <label className="flex items-center gap-1 text-[10px] cursor-pointer bg-gray-100 px-2 py-1 rounded"><input type="checkbox" checked={part.stock} onChange={(e) => { const newP = [...parts]; newP[idx].stock = e.target.checked; setParts(newP); }}/>{part.stock ? "Còn hàng" : "Hết"}</label>
                             ) : (
-                                part.stock ? 
-                                <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full flex items-center gap-1"><CheckCircle size={10}/> Có hàng</span> : 
-                                <span className="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-1 rounded-full flex items-center gap-1"><AlertCircle size={10}/> Hết hàng</span>
+                                part.stock ? <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full flex items-center gap-1"><CheckCircle size={10}/> Có hàng</span> : <span className="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-1 rounded-full flex items-center gap-1"><AlertCircle size={10}/> Hết hàng</span>
                             )}
                         </div>
                     </div>
                     </div>
                 ))
-              )}
+              }
             </div>
           </div>
         )}
@@ -791,8 +710,10 @@ service cloud.firestore {
       <style>{`
         .animate-fade-in { animation: fadeIn 0.5s ease-out; }
         .animate-slide-up { animation: slideUp 0.3s ease-out; }
+        .animate-zoom-in { animation: zoomIn 0.3s ease-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes zoomIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
       `}</style>
     </div>
   );
