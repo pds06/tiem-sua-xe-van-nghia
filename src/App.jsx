@@ -33,7 +33,8 @@ import {
   ShieldAlert,
   Copy,
   ZoomIn,
-  Grid
+  Grid,
+  FolderOpen
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
@@ -57,15 +58,17 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'van-nghia-moto-data'; 
 
-// --- COMPONENT EDITABLE TEXT (CHỮ TO HƠN) ---
+// --- COMPONENT EDITABLE TEXT ---
 const EditableText = ({ isAdminMode, value, onChange, className, placeholder, multiline = false, style }) => {
   const safeValue = value === null || value === undefined ? '' : value;
 
   if (!isAdminMode) {
+    if (!safeValue && placeholder && placeholder.includes("Mô tả")) return null;
     return <span className={className} style={{whiteSpace: 'pre-wrap', ...style}}>{safeValue}</span>;
   }
   
-  const inputClass = `bg-white text-gray-900 border-2 border-orange-500 rounded px-2 py-2 outline-none shadow-lg w-full text-lg block ${className}`;
+  // Tinh chỉnh input admin: border mỏng hơn, padding gọn hơn
+  const inputClass = `bg-white text-gray-900 border border-orange-400 rounded px-2 py-1 outline-none shadow-sm w-full text-base block focus:ring-1 focus:ring-orange-200 transition-all ${className}`;
   
   if (multiline) {
     return (
@@ -75,7 +78,7 @@ const EditableText = ({ isAdminMode, value, onChange, className, placeholder, mu
         className={inputClass}
         placeholder={placeholder}
         rows={3}
-        style={{ width: '100%', ...style }}
+        style={{ width: '100%', minHeight: '60px', ...style }}
         onClick={(e) => e.stopPropagation()}
       />
     );
@@ -93,6 +96,145 @@ const EditableText = ({ isAdminMode, value, onChange, className, placeholder, mu
   );
 };
 
+// --- COMPONENT CATEGORY MANAGER MODAL ---
+const CategoryManagerModal = ({ categories, onReorder, onRename, onClose }) => {
+    const [editingIndex, setEditingIndex] = useState(-1);
+    const [editValue, setEditValue] = useState("");
+
+    const startEdit = (index, currentName) => {
+        setEditingIndex(index);
+        setEditValue(currentName);
+    };
+
+    const saveEdit = (index) => {
+        if (editValue.trim()) {
+            onRename(categories[index], editValue.trim());
+        }
+        setEditingIndex(-1);
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-zoom-in" onClick={e => e.stopPropagation()}>
+                <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
+                    <h3 className="font-bold flex items-center gap-2"><List size={20}/> Sắp xếp & Sửa tên nhóm</h3>
+                    <button onClick={onClose}><X size={20}/></button>
+                </div>
+                <div className="p-4 max-h-[60vh] overflow-y-auto">
+                    <p className="text-sm text-gray-500 mb-3 italic">Bấm mũi tên để sắp xếp, bấm bút chì để đổi tên.</p>
+                    <div className="space-y-2">
+                        {categories.map((cat, idx) => (
+                            <div key={idx} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
+                                {editingIndex === idx ? (
+                                    <div className="flex-1 flex gap-2 mr-2">
+                                        <input 
+                                            autoFocus
+                                            className="border border-orange-400 rounded p-1 flex-1 text-base outline-none"
+                                            value={editValue}
+                                            onChange={e => setEditValue(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && saveEdit(idx)}
+                                        />
+                                        <button onClick={() => saveEdit(idx)} className="bg-green-600 text-white px-2 rounded hover:bg-green-700"><CheckCircle size={18}/></button>
+                                    </div>
+                                ) : (
+                                    <span className="font-bold text-slate-700 flex-1 text-base">{cat}</span>
+                                )}
+                                
+                                <div className="flex gap-1">
+                                    {editingIndex !== idx && (
+                                        <button onClick={() => startEdit(idx, cat)} className="p-2 text-blue-600 hover:bg-blue-100 rounded" title="Đổi tên"><Edit3 size={18}/></button>
+                                    )}
+                                    <button onClick={() => onReorder(idx, 'up')} disabled={idx === 0} className={`p-2 rounded ${idx === 0 ? 'text-gray-300' : 'text-slate-600 hover:bg-slate-200'}`}><ArrowUp size={18}/></button>
+                                    <button onClick={() => onReorder(idx, 'down')} disabled={idx === categories.length - 1} className={`p-2 rounded ${idx === categories.length - 1 ? 'text-gray-300' : 'text-slate-600 hover:bg-slate-200'}`}><ArrowDown size={18}/></button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    {categories.length === 0 && <p className="text-center text-gray-400 py-4">Chưa có nhóm nào.</p>}
+                </div>
+                <div className="p-3 border-t bg-gray-50 text-right">
+                    <button onClick={onClose} className="bg-slate-900 text-white px-6 py-2 rounded-lg text-base font-bold">Xong</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- COMPONENT TAG MANAGER (QUẢN LÝ TAG CHO ITEM) ---
+const TagManagerModal = ({ item, allTags, onClose, onUpdateTags }) => {
+    const [newTag, setNewTag] = useState('');
+    const currentTags = item.tags || [];
+
+    const handleAdd = (tagToAdd) => {
+        const cleanTag = tagToAdd.trim();
+        if (cleanTag && !currentTags.includes(cleanTag)) {
+            onUpdateTags([...currentTags, cleanTag]);
+        }
+        setNewTag('');
+    };
+
+    const handleRemove = (tagToRemove) => {
+        onUpdateTags(currentTags.filter(t => t !== tagToRemove));
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-zoom-in" onClick={(e) => e.stopPropagation()}>
+                <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
+                    <h3 className="font-bold flex items-center gap-2"><Tag size={18}/> Gắn Thẻ/Nhóm</h3>
+                    <button onClick={onClose}><X size={20}/></button>
+                </div>
+                <div className="p-4">
+                    {/* Danh sách tag hiện tại */}
+                    <div className="mb-4">
+                        <p className="text-xs text-gray-500 mb-2 font-bold uppercase">Đang gắn:</p>
+                        <div className="flex flex-wrap gap-2">
+                            {currentTags.length > 0 ? currentTags.map(tag => (
+                                <span key={tag} className="bg-orange-100 text-orange-800 px-2 py-1 rounded-md text-sm font-bold flex items-center gap-1">
+                                    {tag}
+                                    <button onClick={() => handleRemove(tag)} className="hover:text-red-500"><X size={14}/></button>
+                                </span>
+                            )) : <span className="text-sm text-gray-400 italic">Chưa có thẻ nào</span>}
+                        </div>
+                    </div>
+
+                    {/* Input thêm mới */}
+                    <div className="flex gap-2 mb-4">
+                        <input 
+                            type="text" 
+                            className="border p-2 rounded flex-1 text-sm" 
+                            placeholder="Nhập thẻ mới..." 
+                            value={newTag}
+                            onChange={(e) => setNewTag(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAdd(newTag)}
+                        />
+                        <button onClick={() => handleAdd(newTag)} className="bg-green-600 text-white px-3 rounded text-sm font-bold">Thêm</button>
+                    </div>
+
+                    {/* Gợi ý tag cũ */}
+                    <div>
+                        <p className="text-xs text-gray-500 mb-2 font-bold uppercase">Chọn nhanh từ thẻ cũ:</p>
+                        <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+                            {allTags.filter(t => !currentTags.includes(t) && t !== 'Tất cả').map(tag => (
+                                <button 
+                                    key={tag} 
+                                    onClick={() => handleAdd(tag)}
+                                    className="bg-gray-100 text-gray-700 px-2 py-1 rounded-md text-sm hover:bg-gray-200 border border-gray-200"
+                                >
+                                    + {tag}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+                <div className="p-3 border-t bg-gray-50 text-right">
+                    <button onClick={onClose} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold">Xong</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- COMPONENT ITEM DETAIL MODAL ---
 const ItemDetailModal = ({ item, onClose }) => {
     if (!item) return null;
@@ -104,69 +246,57 @@ const ItemDetailModal = ({ item, onClose }) => {
                 className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-zoom-in flex flex-col max-h-[90vh]" 
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Media Header */}
-                <div className="relative h-72 bg-gray-100 shrink-0 flex items-center justify-center overflow-hidden">
+                <div className="relative h-64 bg-gray-50 shrink-0 flex items-center justify-center overflow-hidden border-b border-gray-100">
                     {displayImage ? (
-                        <img src={displayImage} alt={item.name} className="w-full h-full object-contain" />
+                        <img src={displayImage} alt={item.name} className="w-full h-full object-contain p-4" />
                     ) : (
                          <div className="flex flex-col items-center text-gray-400">
-                            {item.price ? <ImageIcon size={80} /> : <Wrench size={80}/>}
+                            {item.price ? <ImageIcon size={64} /> : <Wrench size={64}/>}
                             <span className="text-sm mt-2">Không có ảnh</span>
                          </div>
                     )}
                     <button 
                         onClick={onClose} 
-                        className="absolute top-4 right-4 bg-black/50 text-white p-3 rounded-full hover:bg-black/70 transition"
+                        className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition"
                     >
                         <X size={24}/>
                     </button>
                 </div>
-
                 <div className="p-6 overflow-y-auto">
                     <h3 className="text-2xl font-bold text-slate-900 mb-3 leading-tight">{item.name}</h3>
                     
                     {(!item.variants || item.variants.length === 0) && (
-                        <div className="text-3xl font-extrabold text-orange-600 mb-6">
-                            {item.price}
+                        <div className="text-3xl font-extrabold text-orange-600 mb-6">{item.price}</div>
+                    )}
+
+                    {item.desc && item.desc.trim() !== "" && (
+                        <div className="mb-6">
+                            <h4 className="text-sm font-bold text-gray-500 uppercase mb-2">Thông tin chi tiết</h4>
+                            <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap">{item.desc}</p>
                         </div>
                     )}
 
-                    {item.desc && (
-                        <div className="mb-6 bg-gray-50 p-4 rounded-xl">
-                            <h4 className="text-base font-bold text-gray-500 uppercase mb-2">Mô tả</h4>
-                            <p className="text-lg text-gray-800 leading-relaxed">{item.desc}</p>
-                        </div>
-                    )}
-
-                    {/* Bảng giá biến thể */}
                     {item.variants && item.variants.length > 0 && (
                         <div className="mb-6">
-                             <h4 className="text-base font-bold text-gray-500 uppercase mb-3">Bảng giá chi tiết</h4>
-                             <div className="bg-white border-2 border-gray-100 rounded-xl overflow-hidden">
+                             <h4 className="text-sm font-bold text-gray-500 uppercase mb-3">Bảng giá</h4>
+                             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
                                 {item.variants.map((v, i) => (
-                                    <div key={i} className="flex justify-between items-center border-b border-gray-100 p-4 text-lg last:border-0">
-                                        <span className="font-medium text-slate-700">{v.name}</span>
+                                    <div key={i} className="flex justify-between items-center border-b border-gray-100 p-3 text-base last:border-0 hover:bg-gray-50">
+                                        <span className="font-medium text-slate-800">{v.name}</span>
                                         <span className="font-bold text-orange-600">{v.price}</span>
                                     </div>
                                 ))}
                              </div>
                         </div>
                     )}
-
-                    {/* Tình trạng kho */}
+                    
                     {item.stock !== undefined && (
-                        <div className={`text-xl font-bold mb-8 flex items-center gap-3 p-4 rounded-xl ${item.stock ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
-                            {item.stock ? <CheckCircle size={28}/> : <AlertCircle size={28}/>}
-                            {item.stock ? 'CÒN HÀNG' : 'HẾT HÀNG'}
+                        <div className={`text-lg font-bold mb-6 flex items-center justify-center gap-2 p-3 rounded-xl border ${item.stock ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
+                            {item.stock ? <CheckCircle size={24}/> : <AlertCircle size={24}/>}
+                            {item.stock ? 'SẢN PHẨM CÒN HÀNG' : 'TẠM HẾT HÀNG'}
                         </div>
                     )}
-
-                    <button 
-                        onClick={onClose} 
-                        className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-slate-800 active:scale-95 transition shadow-lg"
-                    >
-                        Đóng
-                    </button>
+                    <button onClick={onClose} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-lg hover:bg-slate-800 active:scale-95 transition shadow-lg">Đóng</button>
                 </div>
             </div>
         </div>
@@ -184,6 +314,11 @@ const OnePageMechanic = () => {
   const [authStatus, setAuthStatus] = useState('checking');
   const [permissionError, setPermissionError] = useState(false);
   const [viewItem, setViewItem] = useState(null);
+  
+  // State quản lý tag
+  const [editingTagItem, setEditingTagItem] = useState(null);
+  const [showCategoryManager, setShowCategoryManager] = useState(false); // Modal quản lý danh mục
+  const [categoriesOrder, setCategoriesOrder] = useState([]); // Thứ tự danh mục
 
   const [activeTab, setActiveTab] = useState('services');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -202,7 +337,9 @@ const OnePageMechanic = () => {
     wifiPass: "0909123456",
     logoUrl: null,
     qrCodeUrl: null,
-    adminPassword: "1234" 
+    adminPassword: "1234",
+    reminderTitle: "ĐỪNG ĐỂ XE HỎNG MỚI SỬA!",
+    reminderDesc: "Bảo dưỡng định kỳ giúp xe vận hành êm ái và bền bỉ hơn. Đừng quên thay nhớt mỗi 1.500km nhé!"
   };
 
   const defaultServices = [
@@ -211,15 +348,16 @@ const OnePageMechanic = () => {
   ];
 
   const defaultParts = [
-    { id: 1, name: "Lốp Michelin City Grip", price: "850.000đ", img: "⚫", stock: true, imageFile: null, tags: ["Lốp"] },
-    { id: 2, name: "Nhớt Motul Scooter", price: "160.000đ", img: "🛢️", stock: true, imageFile: null, tags: ["Nhớt"] },
+    { id: 1, name: "Lốp Michelin City Grip", price: "850.000đ", img: "⚫", stock: true, imageFile: null, tags: ["Lốp"], variants: [], desc: "Lốp bám đường cực tốt, bền bỉ theo thời gian." },
+    { id: 2, name: "Nhớt Motul Scooter", price: "160.000đ", img: "🛢️", stock: true, imageFile: null, tags: ["Nhớt"], variants: [], desc: "Dầu nhớt tổng hợp cao cấp cho xe tay ga." },
   ];
 
   const [shopInfo, setShopInfo] = useState(defaultShopInfo);
   const [services, setServices] = useState(defaultServices);
   const [parts, setParts] = useState(defaultParts);
+  const [selectedTag, setSelectedTag] = useState('Tất cả');
 
-  // --- FIREBASE AUTH & SYNC (Giữ nguyên logic cũ) ---
+  // --- FIREBASE AUTH & SYNC ---
   useEffect(() => { const initAuth = async () => { try { await signInAnonymously(auth); setAuthStatus('logged-in'); } catch (error) { console.error(error); setAuthStatus('error'); } }; initAuth(); const u = onAuthStateChanged(auth, setUser); return () => u(); }, []);
   
   useEffect(() => {
@@ -228,14 +366,15 @@ const OnePageMechanic = () => {
         shop: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'),
         services: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'),
         parts: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'),
-        bookings: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'bookings_list')
+        categories: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list')
     };
     const handleErr = (error) => { if (error.code === 'permission-denied') setPermissionError(true); };
-    const uS = onSnapshot(paths.shop, (s) => { if(s.exists()) setShopInfo(prev => ({...prev, ...s.data()})); }, handleErr);
-    const uSv = onSnapshot(paths.services, (s) => { if(s.exists()) { const d = s.data().items||[]; setServices(d.map(i => ({...i, images: i.images || (i.iconUrl ? [i.iconUrl] : [])}))); } }, handleErr);
-    const uP = onSnapshot(paths.parts, (s) => { if(s.exists()) { const d = s.data().items||[]; setParts(d.map(i => ({...i, images: i.images || (i.imageFile ? [i.imageFile] : [])}))); } }, handleErr);
-    const uB = onSnapshot(paths.bookings, (s) => { if(s.exists()) setBookings(s.data().items||[]); setIsDataLoaded(true); }, handleErr);
-    return () => { uS(); uSv(); uP(); uB(); };
+    const uS = onSnapshot(paths.shop, (s) => { if(s.exists()) setShopInfo(prev => ({...defaultShopInfo, ...prev, ...s.data()})); }, handleErr);
+    const uSv = onSnapshot(paths.services, (s) => { if(s.exists()) { const d = s.data().items||[]; setServices(d.map(i => ({...i, images: i.images || (i.iconUrl ? [i.iconUrl] : []), variants: i.variants || []}))); } }, handleErr);
+    const uP = onSnapshot(paths.parts, (s) => { if(s.exists()) { const d = s.data().items||[]; setParts(d.map(i => ({...i, images: i.images || (i.imageFile ? [i.imageFile] : []), variants: i.variants || [], desc: i.desc || ""}))); } setIsDataLoaded(true); }, handleErr);
+    const uC = onSnapshot(paths.categories, (s) => { if(s.exists()) setCategoriesOrder(s.data().items||[]); }, handleErr);
+    
+    return () => { uS(); uSv(); uP(); uC(); };
   }, [user]);
 
   const forceSaveAll = async () => {
@@ -246,37 +385,47 @@ const OnePageMechanic = () => {
               setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'), shopInfo),
               setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'), { items: services }),
               setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'), { items: parts }),
-              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'bookings_list'), { items: bookings })
+              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list'), { items: categoriesOrder })
           ]);
           setSaveStatus('idle'); setIsAdminMode(false); alert("✅ Đã lưu dữ liệu!");
       } catch (error) { setSaveStatus('error'); alert(`❌ Lỗi lưu: ${error.message}`); }
   };
   
-  // Debounce saves
   useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'), shopInfo), 2000); return () => clearTimeout(t); }, [shopInfo, isDataLoaded]);
   useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'), { items: services }), 2000); return () => clearTimeout(t); }, [services, isDataLoaded]);
   useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'), { items: parts }), 2000); return () => clearTimeout(t); }, [parts, isDataLoaded]);
-  useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'bookings_list'), { items: bookings }), 2000); return () => clearTimeout(t); }, [bookings, isDataLoaded]);
+  useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list'), { items: categoriesOrder }), 2000); return () => clearTimeout(t); }, [categoriesOrder, isDataLoaded]);
 
   useEffect(() => { document.title = shopInfo.name || "Tiệm Sửa Xe"; }, [shopInfo.name]);
 
-  // --- LOGIC PHÂN NHÓM (MENU NHÀ HÀNG) ---
-  // Lấy danh sách các nhóm (Dựa trên tag đầu tiên của mỗi món)
   const getCategories = (items) => {
-      const cats = new Set();
+      const usedTags = new Set();
       items.forEach(item => {
           if (item.tags && item.tags.length > 0) {
-              cats.add(item.tags[0]); // Lấy tag đầu tiên làm tên nhóm
+              usedTags.add(item.tags[0]); 
           } else {
-              cats.add("Khác");
+              usedTags.add("Khác");
           }
       });
-      return Array.from(cats).sort();
+      const usedTagsArray = Array.from(usedTags);
+      return usedTagsArray.sort((a, b) => {
+          const idxA = categoriesOrder.indexOf(a);
+          const idxB = categoriesOrder.indexOf(b);
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          if (idxA !== -1) return -1;
+          if (idxB !== -1) return 1;
+          return a.localeCompare(b);
+      });
+  };
+
+  const getAllUniqueTags = () => {
+      const all = new Set();
+      parts.forEach(p => p.tags && p.tags.forEach(t => all.add(t)));
+      return Array.from(all);
   };
 
   const partCategories = getCategories(parts);
 
-  // --- HELPERS ---
   const handleImageUpload = (e, list, setList, itemId) => {
     const file = e.target.files[0];
     if (file) {
@@ -320,26 +469,176 @@ const OnePageMechanic = () => {
   const handleRemoveMedia = (list, setList, itemId) => { if(window.confirm('Xóa ảnh?')) setList(list.map(i => i.id === itemId ? { ...i, images: [] } : i)); };
   const moveItem = (idx, dir, list, setList) => { const n = [...list]; if (dir === 'up' && idx > 0) { [n[idx], n[idx - 1]] = [n[idx - 1], n[idx]]; } else if (dir === 'down' && idx < list.length - 1) { [n[idx], n[idx + 1]] = [n[idx + 1], n[idx]]; } setList(n); };
   
-  // Hàm thêm tag: Chỉ nhập 1 lần, dùng làm tên nhóm luôn
-  const addTag = (partId) => { const tag = prompt("Nhập tên nhóm (VD: Lốp, Nhớt...):"); if (tag && tag.trim()) { const clean = tag.trim(); setParts(parts.map(p => p.id === partId ? { ...p, tags: [clean] } : p)); } };
-  
+  const updateTagsForItem = (newTags) => {
+      if (!editingTagItem) return;
+      const { id, type } = editingTagItem; 
+      const setList = type === 'parts' ? setParts : setServices;
+      const list = type === 'parts' ? parts : services;
+      const updatedList = list.map(item => item.id === id ? { ...item, tags: newTags } : item);
+      setList(updatedList);
+      newTags.forEach(t => { if (!categoriesOrder.includes(t)) { setCategoriesOrder(prev => [...prev, t]); } });
+  };
+
+  const handleRenameCategory = (oldName, newName) => {
+      if (!newName || newName === oldName) return;
+      const newParts = parts.map(p => { if (p.tags && p.tags.includes(oldName)) { return { ...p, tags: p.tags.map(t => t === oldName ? newName : t) }; } return p; });
+      setParts(newParts);
+      const newOrder = categoriesOrder.map(c => c === oldName ? newName : c);
+      setCategoriesOrder(newOrder);
+  };
+
+  const handleReorderCategories = (index, direction) => {
+      const newOrder = [...partCategories]; 
+      if (direction === 'up' && index > 0) { [newOrder[index], newOrder[index - 1]] = [newOrder[index - 1], newOrder[index]]; } 
+      else if (direction === 'down' && index < newOrder.length - 1) { [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]]; }
+      const mergedOrder = Array.from(new Set([...newOrder, ...categoriesOrder]));
+      setCategoriesOrder(mergedOrder);
+  };
+
   const deleteBooking = (id) => { if(window.confirm("Xóa?")) setBookings(bookings.filter(b => b.id !== id)); };
   const createCalendarReminder = () => { window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent("Bảo dưỡng xe tại " + shopInfo.name)}`, '_blank'); };
   const addNewService = () => setServices([...services, { id: Date.now(), name: "Dịch vụ mới", price: "0đ", images: [], desc: "Mô tả...", variants: [] }]);
   const deleteService = (id) => { if(window.confirm("Xóa?")) setServices(services.filter(s => s.id !== id)); };
-  const addNewPart = () => setParts([...parts, { id: Date.now(), name: "Phụ tùng mới", price: "0đ", img: "📦", stock: true, images: [], tags: ["Khác"] }]);
+  const addNewPart = () => setParts([...parts, { id: Date.now(), name: "Phụ tùng mới", price: "0đ", stock: true, images: [], tags: ["Khác"], variants: [], desc: "" }]);
   const handleLogin = () => { const p = shopInfo.adminPassword || "1234"; if (adminPass === p) { setIsAdminMode(true); setShowLoginModal(false); setAdminPass(''); } else { alert('Sai mật khẩu!'); } };
   const handleChangePassword = () => { if(newPassword) { if(window.confirm('Đổi mật khẩu?')) { setShopInfo(p => ({...p, adminPassword: newPassword})); setNewPassword(''); alert('Đã đổi!'); } } };
+
+  // --- RENDER ITEM CARD ---
+  const renderItemCard = (item, idx, list, setList, type = 'services') => {
+      const hasVariants = item.variants && item.variants.length > 0;
+      const singleVariant = item.variants && item.variants.length === 1;
+
+      return (
+      <div 
+        key={item.id} 
+        className={`bg-white p-3 rounded-xl shadow-sm border border-gray-200 hover:border-orange-300 hover:shadow-md transition relative group flex flex-row items-start gap-4 h-full ${!isAdminMode ? 'cursor-pointer active:bg-gray-50' : ''}`}
+        onClick={() => !isAdminMode && setViewItem(item)}
+      >
+        {isAdminMode && (
+            <div className="absolute top-2 right-2 z-20 flex gap-2">
+                <button onClick={(e) => {e.stopPropagation(); moveItem(idx, 'up', list, setList)}} className="text-white hover:text-blue-300 p-2 bg-black/40 rounded-full backdrop-blur-sm shadow-md" title="Lên"><ArrowUp size={16}/></button>
+                <button onClick={(e) => {e.stopPropagation(); moveItem(idx, 'down', list, setList)}} className="text-white hover:text-blue-300 p-2 bg-black/40 rounded-full backdrop-blur-sm shadow-md" title="Xuống"><ArrowDown size={16}/></button>
+                <button onClick={(e) => {e.stopPropagation(); if(window.confirm('Xóa?')) setList(list.filter(p => p.id !== item.id))}} className="text-white hover:text-red-300 p-2 bg-red-500/80 rounded-full backdrop-blur-sm shadow-md" title="Xóa"><Trash2 size={16}/></button>
+            </div>
+        )}
+        
+        {/* Cột ảnh bên trái - TỐI ƯU SIZE: w-24 (mobile) -> w-28 (desktop) */}
+        <div className="w-24 h-24 md:w-28 md:h-28 bg-white shrink-0 flex items-center justify-center relative border border-gray-200 rounded-lg group/icon overflow-hidden">
+                {(item.images && item.images.length > 0) ? (
+                    <img src={item.images[0]} alt="icon" className="w-full h-full object-cover" />
+                ) : (
+                    <Wrench className="text-gray-300" size={40} />
+                )}
+                
+                {isAdminMode && (
+                    <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover/icon:opacity-100 transition gap-2">
+                        <label className="cursor-pointer text-white hover:text-green-300 p-1"><Upload size={20}/><input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, list, setList, item.id)}/></label>
+                        {(item.images && item.images.length > 0) && <button onClick={(e) => { e.stopPropagation(); handleRemoveMedia(list, setList, item.id); }} className="text-red-400 hover:text-red-200 p-1"><Trash2 size={20}/></button>}
+                    </div>
+                )}
+        </div>
+        
+        {/* Cột nội dung bên phải */}
+        <div className="flex-1 flex flex-col justify-between py-0.5">
+            <div>
+                {/* TÊN: Bold, text-lg */}
+                <h4 className="font-bold text-slate-800 text-lg md:text-xl leading-tight mb-1 pr-6">
+                    <EditableText isAdminMode={isAdminMode} value={item.name} onChange={(val) => { const newList = [...list]; newList[idx].name = val; setList(newList); }} className="font-bold w-full"/>
+                </h4>
+                
+                {/* GIÁ THÔNG MINH */}
+                {!hasVariants && (
+                    <div className="text-orange-600 font-extrabold text-xl md:text-2xl mb-1">
+                        <EditableText isAdminMode={isAdminMode} value={item.price} onChange={(val) => { const newList = [...list]; newList[idx].price = val; setList(newList); }}/>
+                    </div>
+                )}
+
+                {singleVariant && (
+                    <div className="text-orange-600 font-extrabold text-xl md:text-2xl mb-1 flex flex-wrap items-center gap-1">
+                        {item.variants[0].price} 
+                        <span className="text-xs text-gray-500 font-normal">({item.variants[0].name})</span>
+                    </div>
+                )}
+                
+                {(hasVariants && !singleVariant) && (
+                    <div className="text-sm text-gray-500 font-medium mb-1 bg-gray-100 px-2 py-0.5 rounded inline-block">{item.variants.length} loại giá</div>
+                )}
+
+                {/* MÔ TẢ: CHỈ HIỆN KHI CÓ */}
+                <div className={`text-sm text-gray-500 mb-1 ${isAdminMode ? '' : 'line-clamp-2'}`}>
+                    <EditableText isAdminMode={isAdminMode} value={item.desc} onChange={(val) => { const newList = [...list]; newList[idx].desc = val; setList(newList); }} multiline={isAdminMode} placeholder="Mô tả/Giới thiệu sản phẩm..."/>
+                </div>
+            </div>
+
+            {/* PHẦN DƯỚI: TRẠNG THÁI & ADMIN TOOLS */}
+            <div className="mt-auto w-full">
+                {item.stock !== undefined && (
+                    isAdminMode ? (
+                        <div className="flex flex-col gap-2 mt-2">
+                            <label className="flex items-center gap-2 text-sm font-bold cursor-pointer bg-gray-100 px-3 py-2 rounded-lg hover:bg-gray-200">
+                                <input type="checkbox" checked={item.stock} onChange={(e) => { const newList = [...list]; newList[idx].stock = e.target.checked; setList(newList); }} className="w-5 h-5"/>
+                                {item.stock ? "HIỆN: CÒN" : "HIỆN: HẾT"}
+                            </label>
+                             <button onClick={(e) => {e.stopPropagation(); setEditingTagItem({ id: item.id, type, tags: item.tags })}} className="text-xs bg-blue-100 text-blue-700 px-3 py-2 rounded-lg hover:bg-blue-200 font-bold w-full text-left flex items-center gap-1"><Tag size={12}/> Gắn Thẻ</button>
+                        </div>
+                    ) : (
+                        <div className={`font-black text-sm uppercase px-2 py-0.5 rounded inline-block ${item.stock ? 'text-green-700 bg-green-50 border border-green-200' : 'text-red-600 bg-red-50 border border-red-200'}`}>
+                            {item.stock ? 'CÒN' : 'HẾT'}
+                        </div>
+                    )
+                )}
+
+                {/* Sửa biến thể - Admin */}
+                {isAdminMode && (
+                    <div className="mt-2 space-y-2">
+                        {item.variants?.map((variant, vIdx) => (
+                            <div key={vIdx} className="flex justify-between items-center text-sm border-b border-gray-100 pb-1">
+                                <div className="flex-1 flex gap-2">
+                                    <EditableText isAdminMode={true} value={variant.name} onChange={(val) => { const newList = [...list]; newList[idx].variants[vIdx].name = val; setList(newList); }} className="w-full text-gray-700 text-sm"/>
+                                    <EditableText isAdminMode={true} value={variant.price} onChange={(val) => { const newList = [...list]; newList[idx].variants[vIdx].price = val; setList(newList); }} className="w-full font-bold text-orange-600 text-right text-sm"/>
+                                </div>
+                                <button onClick={(e) => { e.stopPropagation(); const newList = [...list]; newList[idx].variants = newList[idx].variants.filter((_, i) => i !== vIdx); setList(newList); }} className="text-red-400 ml-2 p-1"><X size={16}/></button>
+                            </div>
+                        ))}
+                        <button onClick={(e) => { e.stopPropagation(); const newList = [...list]; if(!newList[idx].variants) newList[idx].variants = []; newList[idx].variants.push({name: 'Loại mới', price: '0đ'}); setList(newList); }} className="text-xs text-blue-600 flex items-center gap-1 mt-2 hover:underline font-bold bg-blue-50 px-3 py-2 rounded w-full justify-center">+ Thêm giá/loại</button>
+                    </div>
+                )}
+            </div>
+        </div>
+      </div>
+  );};
 
   return (
     <div className={`min-h-screen bg-gray-50 text-gray-900 font-sans pb-24 md:pb-0 relative text-base md:text-lg`}>
       
       {/* MODAL & ALERTS */}
       <ItemDetailModal item={viewItem} onClose={() => setViewItem(null)} />
+      
+      {/* MODAL QUẢN LÝ TAG */}
+      {editingTagItem && (
+          <TagManagerModal 
+            item={editingTagItem} 
+            allTags={getAllUniqueTags()} 
+            onClose={() => setEditingTagItem(null)} 
+            onUpdateTags={updateTagsForItem}
+          />
+      )}
+      
+      {/* MODAL QUẢN LÝ DANH MỤC */}
+      {showCategoryManager && (
+          <CategoryManagerModal 
+            categories={partCategories}
+            onReorder={handleReorderCategories}
+            onRename={handleRenameCategory}
+            onClose={() => setShowCategoryManager(false)}
+          />
+      )}
+
       {permissionError && <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/80"><div className="bg-white p-6 rounded-xl"><h2 className="text-red-600 font-bold">LỖI QUYỀN FIREBASE</h2><p>Vui lòng mở quyền read/write trong Firestore Rules.</p><button onClick={() => window.location.reload()} className="mt-4 bg-red-600 text-white px-4 py-2 rounded">Tải lại</button></div></div>}
 
       {/* HEADER */}
       <header className="bg-slate-900 text-white sticky top-0 z-40 shadow-lg">
+        {/* GIẢM PADDING HEADER CHO GỌN: py-3 */}
         <div className="w-full px-4 py-3 flex justify-between items-center">
           <div className="flex items-center space-x-3 flex-1">
             <div className="relative group shrink-0">
@@ -351,86 +650,58 @@ const OnePageMechanic = () => {
                 <div className="text-sm text-gray-400 hidden md:block truncate"><EditableText isAdminMode={isAdminMode} value={shopInfo.tagline} onChange={(val) => setShopInfo({...shopInfo, tagline: val})}/></div>
             </div>
           </div>
-          <nav className="hidden md:flex space-x-8 text-lg font-medium">
+          <nav className="hidden md:flex space-x-8 text-lg font-bold">
             <button onClick={() => setActiveTab('services')} className={`hover:text-orange-500 ${activeTab === 'services' ? 'text-orange-500' : ''}`}>Dịch Vụ</button>
             <button onClick={() => setActiveTab('parts')} className={`hover:text-orange-500 ${activeTab === 'parts' ? 'text-orange-500' : ''}`}>Phụ Tùng</button>
-            <button onClick={() => setActiveTab('reminder')} className={`hover:text-orange-500 ${activeTab === 'reminder' ? 'text-orange-500' : ''}`}>Nhắc Lịch</button>
           </nav>
-          <button className="md:hidden p-2" onClick={() => setIsMenuOpen(!isMenuOpen)}>{isMenuOpen ? <X size={32} /> : <Menu size={32} />}</button>
+          <button className="md:hidden p-2" onClick={() => setIsMenuOpen(!isMenuOpen)}>{isMenuOpen ? <X size={36} /> : <Menu size={36} />}</button>
         </div>
-        {isMenuOpen && <div className="md:hidden bg-slate-800 px-4 py-4 space-y-4 text-lg"><button onClick={() => {setActiveTab('services'); setIsMenuOpen(false)}} className="block w-full text-left py-2 border-b border-slate-700">Dịch Vụ</button><button onClick={() => {setActiveTab('parts'); setIsMenuOpen(false)}} className="block w-full text-left py-2 border-b border-slate-700">Phụ Tùng</button><button onClick={() => {setActiveTab('reminder'); setIsMenuOpen(false)}} className="block w-full text-left py-2">Nhắc Lịch</button></div>}
+        {isMenuOpen && <div className="md:hidden bg-slate-800 px-6 py-4 space-y-4 text-lg font-bold border-t border-slate-700"><button onClick={() => {setActiveTab('services'); setIsMenuOpen(false)}} className="block w-full text-left py-3 border-b border-slate-600">Dịch Vụ</button><button onClick={() => {setActiveTab('parts'); setIsMenuOpen(false)}} className="block w-full text-left py-3 border-b border-slate-600">Phụ Tùng</button></div>}
       </header>
 
       {/* ADMIN PANEL */}
       {isAdminMode && (
-        <div className="bg-white border-b-2 border-orange-500 p-4">
+        <div className="bg-white border-b-2 border-orange-500 p-4 shadow-md">
             <div className="w-full px-4">
-                <div className="flex flex-col lg:flex-row justify-between items-center mb-4 gap-4">
-                    <div className="flex items-center gap-2"><List className="text-orange-500"/><h2 className="font-bold text-xl">Quản lý ({bookings.length} đơn)</h2>
+                <div className="flex flex-col lg:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center gap-3"><Settings className="text-orange-500" size={28}/><h2 className="font-bold text-xl">Quản trị viên</h2>
                         {saveStatus === 'saving' && <span className="text-sm text-orange-500 font-bold animate-pulse">Đang lưu...</span>}
                         {saveStatus === 'error' && <span className="text-sm text-red-500 font-bold">Lỗi lưu!</span>}
                     </div>
-                    <div className="flex items-center gap-2 bg-gray-100 p-2 rounded-lg">
-                        <input type="text" placeholder="Mật khẩu mới..." className="bg-transparent text-sm outline-none w-32 p-2" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}/>
-                        <button onClick={handleChangePassword} className="bg-slate-900 text-white text-sm px-4 py-2 rounded hover:bg-slate-700 font-bold">Đổi</button>
+                    <div className="flex items-center gap-3 bg-gray-100 p-2 rounded-xl w-full md:w-auto">
+                        <input type="text" placeholder="Mật khẩu mới..." className="bg-transparent text-base outline-none w-full md:w-48 p-2" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}/>
+                        <button onClick={handleChangePassword} className="bg-slate-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-slate-700 font-bold whitespace-nowrap">Đổi</button>
                     </div>
-                </div>
-                {/* Booking List */}
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-60 overflow-y-auto">
-                    {bookings.map((b) => (
-                        <div key={b.id} className="border border-gray-200 p-4 rounded-lg shadow-sm bg-gray-50 relative">
-                            <button onClick={() => deleteBooking(b.id)} className="absolute top-2 right-2 text-red-500 p-2"><Trash2 size={20}/></button>
-                            <div className="font-bold text-lg">{b.name}</div>
-                            <div className="text-base">{b.bike} - {b.time}</div>
-                            <div className="text-sm text-gray-500">{b.created_at}</div>
-                        </div>
-                    ))}
                 </div>
             </div>
         </div>
       )}
 
-      {/* MAIN CONTENT */}
-      <main className="w-full px-4 md:px-8 lg:px-12 py-8">
+      {/* HERO SECTION */}
+      <div className="bg-slate-800 text-white py-8 px-4 text-center relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+        <div className="relative z-10 w-full px-4 mx-auto">
+          <div className="text-orange-500 font-bold uppercase tracking-wider text-base mb-2">{shopInfo.tagline}</div>
+          <h2 className="text-3xl md:text-5xl font-extrabold mb-4"><EditableText isAdminMode={isAdminMode} value={shopInfo.heroTitle} onChange={(val) => setShopInfo({...shopInfo, heroTitle: val})} className="bg-transparent text-white text-center w-full block" multiline={true} style={{color: isAdminMode ? 'black' : 'white'}}/></h2>
+          <div className="text-gray-300 mb-6 max-w-4xl mx-auto"><EditableText isAdminMode={isAdminMode} value={shopInfo.heroDesc} onChange={(val) => setShopInfo({...shopInfo, heroDesc: val})} className="bg-transparent text-gray-300 text-center w-full block text-base md:text-lg font-light" multiline={true} style={{color: isAdminMode ? 'black' : '#d1d5db'}}/></div>
+        </div>
+      </div>
+
+      {/* MAIN CONTENT AREA */}
+      {/* TỐI ƯU PADDING: px-2 (mobile) -> px-4 (md) -> px-8 (lg) */}
+      <main className="w-full px-2 md:px-4 lg:px-8 py-8 max-w-[1920px] mx-auto">
         
         {/* SERVICES TAB */}
         {activeTab === 'services' && (
           <div className="animate-fade-in">
-            <div className="flex justify-between items-center mb-6 border-l-8 border-orange-500 pl-4 py-1">
-                <h3 className="text-3xl font-bold uppercase text-slate-800">Dịch Vụ</h3>
-                {isAdminMode && <button onClick={addNewService} className="bg-green-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-green-700 shadow-lg text-lg"><Plus size={24}/> Thêm</button>}
+            <div className="flex justify-between items-center mb-6 border-l-8 border-orange-500 pl-4 py-1 bg-gray-50 rounded-r-lg">
+                <h3 className="text-2xl md:text-3xl font-black uppercase text-slate-800">Dịch Vụ</h3>
+                {isAdminMode && <button onClick={addNewService} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-green-700 shadow-md text-base"><Plus size={20}/> Thêm</button>}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
-              {services.map((service, idx) => (
-                <div key={service.id} className={`bg-white p-4 rounded-2xl shadow-md border-2 border-gray-100 hover:shadow-xl hover:border-orange-200 transition duration-300 relative group flex flex-col h-full ${!isAdminMode ? 'cursor-pointer' : ''}`} onClick={() => !isAdminMode && setViewItem(service)}>
-                  {/* Ảnh Icon */}
-                  <div className="w-full aspect-square bg-gray-50 rounded-xl flex items-center justify-center overflow-hidden relative mb-4 border border-gray-200">
-                       {(service.images && service.images.length > 0) ? (
-                           <img src={service.images[0]} alt="icon" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                       ) : (
-                           <Wrench className="text-gray-300" size={64} />
-                       )}
-                       {isAdminMode && (
-                           <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition gap-4">
-                               <label className="cursor-pointer text-white hover:text-green-400 p-2 bg-white/10 rounded-full"><Upload size={28}/><input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, services, setServices, service.id)}/></label>
-                               {(service.images && service.images.length > 0) && <button onClick={(e) => { e.stopPropagation(); handleRemoveMedia(services, setServices, service.id); }} className="text-red-400 hover:text-red-200 p-2 bg-white/10 rounded-full"><Trash2 size={28}/></button>}
-                           </div>
-                       )}
-                  </div>
-                  {/* Admin Controls */}
-                  {isAdminMode && (
-                    <div className="flex justify-between mb-2">
-                        <button onClick={() => moveItem(idx, 'up', services, setServices)} className="p-2 bg-gray-100 rounded hover:bg-blue-100"><ArrowUp size={20}/></button>
-                        <button onClick={() => moveItem(idx, 'down', services, setServices)} className="p-2 bg-gray-100 rounded hover:bg-blue-100"><ArrowDown size={20}/></button>
-                        <button onClick={() => deleteService(service.id)} className="p-2 bg-red-100 text-red-600 rounded hover:bg-red-200"><Trash2 size={20}/></button>
-                    </div>
-                  )}
-                  <div className="flex-1 flex flex-col">
-                      <h4 className="font-bold text-slate-900 text-xl mb-2 leading-snug"><EditableText isAdminMode={isAdminMode} value={service.name} onChange={(val) => { const newS = [...services]; newS[idx].name = val; setServices(newS); }} className="font-bold w-full"/></h4>
-                      {(!service.variants || service.variants.length === 0) && <div className="text-orange-600 font-extrabold text-2xl mb-2"><EditableText isAdminMode={isAdminMode} value={service.price} onChange={(val) => { const newS = [...services]; newS[idx].price = val; setServices(newS); }}/></div>}
-                  </div>
-                </div>
-              ))}
+            
+            {/* GRID DỊCH VỤ: TĂNG MẬT ĐỘ CHO MOBILE & DESKTOP */}
+            <div className={isAdminMode ? "flex flex-col gap-3" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3"}>
+              {services.map((service, idx) => renderItemCard(service, idx, services, setServices, 'services'))}
             </div>
           </div>
         )}
@@ -438,74 +709,31 @@ const OnePageMechanic = () => {
         {/* PARTS TAB (MENU NHÀ HÀNG STYLE) */}
         {activeTab === 'parts' && (
           <div className="animate-fade-in">
-            <div className="flex justify-between items-center mb-8 border-l-8 border-orange-500 pl-4 py-1">
-                <h3 className="text-3xl font-bold uppercase text-slate-800">Phụ Tùng</h3>
-                {isAdminMode && <button onClick={addNewPart} className="bg-green-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-green-700 shadow-lg text-lg"><Plus size={24}/> Thêm</button>}
+            <div className="flex justify-between items-center mb-8 border-l-8 border-orange-500 pl-4 py-1 bg-gray-50 rounded-r-lg">
+                <h3 className="text-2xl md:text-3xl font-black uppercase text-slate-800">Phụ Tùng</h3>
+                {isAdminMode && (
+                    <div className="flex gap-2">
+                        <button onClick={() => setShowCategoryManager(true)} className="bg-blue-600 text-white px-3 py-2 rounded-lg font-bold flex items-center gap-1 hover:bg-blue-700 shadow-md text-sm"><List size={18}/> Sắp xếp</button>
+                        <button onClick={addNewPart} className="bg-green-600 text-white px-3 py-2 rounded-lg font-bold flex items-center gap-1 hover:bg-green-700 shadow-md text-sm"><Plus size={18}/> Thêm</button>
+                    </div>
+                )}
             </div>
 
-            {/* HIỂN THỊ THEO NHÓM (SECTION) */}
             {partCategories.map(category => {
                 const itemsInCategory = parts.filter(p => (p.tags && p.tags.length > 0 ? p.tags[0] === category : category === 'Khác'));
                 if (itemsInCategory.length === 0) return null;
 
                 return (
-                    <div key={category} className="mb-12">
-                        {/* TIÊU ĐỀ NHÓM */}
-                        <h4 className="text-2xl font-bold text-slate-700 mb-6 flex items-center gap-2 border-b-2 border-gray-200 pb-2">
-                           <Grid size={24} className="text-orange-500"/> {category}
+                    <div key={category} className="mb-10">
+                        <h4 className="text-xl md:text-2xl font-bold text-slate-700 mb-4 flex items-center gap-3 border-b-2 border-orange-200 pb-2 px-2 sticky top-[72px] bg-white/95 backdrop-blur-md z-30 py-2 rounded-lg shadow-sm">
+                           <FolderOpen size={28} className="text-orange-500"/> {category}
                         </h4>
                         
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+                        {/* GRID PHỤ TÙNG: TĂNG MẬT ĐỘ */}
+                        <div className={isAdminMode ? "flex flex-col gap-3" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"}>
                             {itemsInCategory.map((part) => {
-                                const idx = parts.findIndex(p => p.id === part.id); // Tìm index thực để sửa
-                                return (
-                                    <div key={part.id} className={`bg-white rounded-2xl shadow-md overflow-hidden border-2 border-gray-100 hover:border-orange-200 hover:shadow-xl transition duration-300 flex flex-col h-full group ${!isAdminMode ? 'cursor-pointer' : ''}`} onClick={() => !isAdminMode && setViewItem(part)}>
-                                        {/* ẢNH */}
-                                        <div className="w-full aspect-square bg-gray-50 flex items-center justify-center overflow-hidden relative">
-                                            {(part.images && part.images.length > 0) ? (
-                                                <img src={part.images[0]} alt={part.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"/>
-                                            ) : (
-                                                <ImageIcon className="text-gray-300" size={64}/>
-                                            )}
-                                            {/* Admin Controls Overlay */}
-                                            {isAdminMode && (
-                                                <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition gap-4 z-20">
-                                                    <label className="cursor-pointer text-white hover:text-green-300 p-2 bg-white/10 rounded-full"><Upload size={28}/><input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, parts, setParts, part.id)}/></label>
-                                                    {(part.images && part.images.length > 0) && <button onClick={(e) => {e.stopPropagation(); handleRemoveMedia(parts, setParts, part.id)}} className="text-red-400 hover:text-red-200 p-2 bg-white/10 rounded-full"><Trash2 size={28}/></button>}
-                                                    <div className="flex gap-2 mt-2">
-                                                        <button onClick={(e) => {e.stopPropagation(); moveItem(idx, 'up', parts, setParts)}} className="p-2 bg-white/20 text-white rounded"><ArrowUp size={20}/></button>
-                                                        <button onClick={(e) => {e.stopPropagation(); moveItem(idx, 'down', parts, setParts)}} className="p-2 bg-white/20 text-white rounded"><ArrowDown size={20}/></button>
-                                                        <button onClick={(e) => {e.stopPropagation(); if(window.confirm('Xóa?')) setParts(parts.filter(p => p.id !== part.id))}} className="p-2 bg-red-500/80 text-white rounded"><Trash2 size={20}/></button>
-                                                    </div>
-                                                    <button onClick={(e) => {e.stopPropagation(); addTag(part.id)}} className="text-xs bg-blue-600 text-white px-3 py-1 rounded-full mt-2">Sửa Nhóm</button>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* NỘI DUNG */}
-                                        <div className="p-4 flex flex-col flex-1">
-                                            <h5 className="font-bold text-lg text-slate-900 mb-2 leading-tight flex-grow">
-                                                <EditableText isAdminMode={isAdminMode} value={part.name} onChange={(val) => { const newP = [...parts]; newP[idx].name = val; setParts(newP); }}/>
-                                            </h5>
-                                            <div className="mt-auto pt-3 border-t border-gray-100 flex flex-col gap-2">
-                                                <span className="font-extrabold text-orange-600 text-xl">
-                                                    <EditableText isAdminMode={isAdminMode} value={part.price} onChange={(val) => { const newP = [...parts]; newP[idx].price = val; setParts(newP); }}/>
-                                                </span>
-                                                {/* TRẠNG THÁI KHO: CHỈ HIỆN CÒN HOẶC HẾT */}
-                                                {isAdminMode ? (
-                                                    <label className="flex items-center gap-2 text-sm cursor-pointer bg-gray-100 px-3 py-2 rounded-lg font-bold">
-                                                        <input type="checkbox" checked={part.stock} onChange={(e) => { const newP = [...parts]; newP[idx].stock = e.target.checked; setParts(newP); }} className="w-5 h-5"/>
-                                                        {part.stock ? "Đang hiện CÒN" : "Đang hiện HẾT"}
-                                                    </label>
-                                                ) : (
-                                                    <div className={`text-center font-black text-sm py-1 rounded ${part.stock ? 'text-green-600 bg-green-100' : 'text-red-500 bg-red-100'}`}>
-                                                        {part.stock ? 'CÒN' : 'HẾT'}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
+                                const idx = parts.findIndex(p => p.id === part.id);
+                                return renderItemCard(part, idx, parts, setParts, 'parts');
                             })}
                         </div>
                     </div>
@@ -513,62 +741,72 @@ const OnePageMechanic = () => {
             })}
           </div>
         )}
-
-        {/* REMINDER TAB */}
-        {activeTab === 'reminder' && (
-          <div className="animate-fade-in py-8">
-             <div className="bg-white p-8 rounded-3xl shadow-xl border-2 border-gray-100 text-center max-w-2xl mx-auto">
-                <Bell className="w-24 h-24 text-orange-500 mx-auto mb-6" />
-                <h4 className="text-3xl font-black mb-4 text-slate-800">ĐỪNG ĐỂ XE HỎNG MỚI SỬA!</h4>
-                <p className="text-gray-600 text-xl mb-8 leading-relaxed">Cài đặt lịch nhắc nhở trên điện thoại để không quên thay nhớt mỗi <span className="font-bold text-orange-600">1.500km</span>.</p>
-                <button onClick={createCalendarReminder} className="bg-blue-600 text-white py-4 px-10 rounded-2xl font-bold text-xl shadow-xl hover:bg-blue-700 transform hover:scale-105 transition flex items-center justify-center gap-3 w-full md:w-auto mx-auto">
-                    <Calendar size={28}/> THÊM VÀO LỊCH
-                </button>
-             </div>
-          </div>
-        )}
       </main>
+      
+      {/* REMINDER SECTION */}
+      <section className="bg-white py-10 px-4 border-t-4 border-orange-500">
+         <div className="max-w-4xl mx-auto text-center">
+            <div className="inline-block p-4 rounded-full bg-orange-50 mb-4">
+                 <Bell className="w-10 h-10 text-orange-600 animate-pulse" />
+            </div>
+            <h2 className="text-xl md:text-3xl font-black mb-3 text-slate-900 leading-tight uppercase">
+                <EditableText isAdminMode={isAdminMode} value={shopInfo.reminderTitle} onChange={(val) => setShopInfo({...shopInfo, reminderTitle: val})} className="text-center font-black"/>
+            </h2>
+            <div className="text-base md:text-lg text-gray-600 leading-snug mb-4 max-w-3xl mx-auto font-light">
+                <EditableText isAdminMode={isAdminMode} value={shopInfo.reminderDesc} onChange={(val) => setShopInfo({...shopInfo, reminderDesc: val})} multiline={true} className="text-center bg-transparent p-0 border-none leading-snug"/>
+            </div>
+         </div>
+      </section>
 
       {/* FOOTER */}
-      <footer className="bg-slate-900 text-slate-300 py-12 px-4 mt-12 pb-32">
-        <div className="w-full px-4 md:px-8 lg:px-12 grid md:grid-cols-2 gap-10">
+      <footer className="bg-slate-900 text-slate-300 py-10 px-4 mt-0 pb-32">
+        <div className="w-full px-2 md:px-8 grid md:grid-cols-2 gap-8">
           <div>
-            <h4 className="text-white font-bold text-2xl mb-6">{shopInfo.name}</h4>
-            <div className="space-y-4 text-lg">
-              <p className="flex items-start gap-3"><MapPin className="text-orange-500 shrink-0 mt-1" size={24} /><EditableText isAdminMode={isAdminMode} value={shopInfo.address} onChange={(val) => setShopInfo({...shopInfo, address: val})} className="text-slate-300"/></p>
-              <p className="flex items-center gap-3"><Clock className="text-orange-500 shrink-0" size={24} /><EditableText isAdminMode={isAdminMode} value={shopInfo.workingHours} onChange={(val) => setShopInfo({...shopInfo, workingHours: val})} className="text-slate-300"/></p>
-              <p className="flex items-center gap-3"><Phone className="text-orange-500 shrink-0" size={24} /><EditableText isAdminMode={isAdminMode} value={shopInfo.phone} onChange={(val) => setShopInfo({...shopInfo, phone: val})} className="text-slate-300"/></p>
+            <h4 className="text-white font-black text-2xl mb-4 border-b-2 border-orange-500 pb-2 inline-block">{shopInfo.name}</h4>
+            <div className="space-y-4 text-base md:text-lg font-medium">
+              <div className="flex items-start gap-3">
+                  <MapPin className="text-orange-500 shrink-0 mt-1" size={20} />
+                  <EditableText isAdminMode={isAdminMode} value={shopInfo.address} onChange={(val) => setShopInfo({...shopInfo, address: val})} className="text-slate-300 w-full" multiline={isAdminMode}/>
+              </div>
+              <div className="flex items-center gap-3">
+                  <Clock className="text-orange-500 shrink-0" size={20} />
+                  <EditableText isAdminMode={isAdminMode} value={shopInfo.workingHours} onChange={(val) => setShopInfo({...shopInfo, workingHours: val})} className="text-slate-300 w-full" multiline={isAdminMode}/>
+              </div>
+              <div className="flex items-center gap-3">
+                  <Phone className="text-orange-500 shrink-0" size={20} />
+                  <EditableText isAdminMode={isAdminMode} value={shopInfo.phone} onChange={(val) => setShopInfo({...shopInfo, phone: val})} className="text-slate-300"/>
+              </div>
             </div>
           </div>
-          <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 self-start group">
+          <div className="bg-slate-800 p-6 rounded-2xl border-2 border-slate-600 self-start group shadow-lg w-full max-w-sm">
             <h5 className="text-white font-bold flex items-center gap-3 mb-4 text-xl"><Wifi size={24} className="text-green-400"/> Wifi Miễn Phí</h5>
-            <div className="bg-slate-900 p-4 rounded-xl text-center relative z-10">
-              <div className="text-sm text-gray-400 mb-1">Tên mạng:</div>
-              <div className="font-mono text-2xl text-orange-400 font-bold tracking-wide mb-3"><EditableText isAdminMode={isAdminMode} value={shopInfo.wifi} onChange={(val) => setShopInfo({...shopInfo, wifi: val})}/></div>
+            <div className="bg-slate-900 p-4 rounded-xl text-center relative z-10 border border-slate-700 shadow-inner">
+              <div className="text-xs text-gray-400 mb-1 uppercase tracking-widest font-bold">Tên mạng</div>
+              <div className="font-mono text-xl text-orange-400 font-bold tracking-wide mb-2"><EditableText isAdminMode={isAdminMode} value={shopInfo.wifi} onChange={(val) => setShopInfo({...shopInfo, wifi: val})}/></div>
               <div className="h-px bg-slate-700 my-2"></div>
-              <div className="text-sm text-gray-400 mb-1">Mật khẩu:</div>
+              <div className="text-xs text-gray-400 mb-1 uppercase tracking-widest font-bold">Mật khẩu</div>
               <div className="font-mono text-2xl text-white tracking-widest"><EditableText isAdminMode={isAdminMode} value={shopInfo.wifiPass} onChange={(val) => setShopInfo({...shopInfo, wifiPass: val})}/></div>
             </div>
             <div className="mt-6 text-center relative">
-                <p className="text-sm text-gray-400 mb-3 uppercase font-bold">Quét QR chuyển khoản</p>
-                {shopInfo.qrCodeUrl ? <img src={shopInfo.qrCodeUrl} alt="QR" className="w-48 h-48 mx-auto rounded-xl border-4 border-white shadow-lg"/> : <div className="w-48 h-48 mx-auto bg-gray-700 flex items-center justify-center text-sm text-gray-400 rounded-xl">Chưa có QR</div>}
-                {isAdminMode && <label className="absolute inset-0 bg-black/60 flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition rounded-xl"><span className="text-white font-bold bg-blue-600 px-4 py-2 rounded-lg shadow">Đổi QR</span><input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, shopInfo, setShopInfo, 'qrCodeUrl')}/></label>}
+                <p className="text-xs text-gray-400 mb-2 uppercase font-black tracking-wider">Quét QR chuyển khoản</p>
+                {shopInfo.qrCodeUrl ? <img src={shopInfo.qrCodeUrl} alt="QR" className="w-32 h-32 mx-auto rounded-xl border-4 border-white shadow-lg"/> : <div className="w-32 h-32 mx-auto bg-gray-700 flex items-center justify-center text-sm text-gray-400 rounded-xl">Chưa có QR</div>}
+                {isAdminMode && <label className="absolute inset-0 bg-black/70 flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition rounded-xl"><span className="text-white font-bold bg-blue-600 px-4 py-2 rounded-lg shadow-lg text-sm">Đổi Ảnh QR</span><input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, shopInfo, setShopInfo, 'qrCodeUrl')}/></label>}
             </div>
           </div>
         </div>
-        {!isAdminMode && <div className="flex justify-end mt-8 pt-8 border-t border-slate-800 mr-4 md:mr-8"><button onClick={() => setShowLoginModal(true)} className="text-gray-500 hover:text-white flex items-center gap-2 text-sm bg-slate-800 px-4 py-2 rounded-full"><Settings size={16}/> Quản lý tiệm</button></div>}
+        {!isAdminMode && <div className="flex justify-end mt-8 pt-4 border-t border-slate-800 mr-2 md:mr-8"><button onClick={() => setShowLoginModal(true)} className="text-gray-400 hover:text-white flex items-center gap-2 text-sm bg-slate-800 px-4 py-2 rounded-full transition hover:bg-slate-700 font-bold shadow-lg"><Settings size={16}/> Quản lý tiệm</button></div>}
       </footer>
 
       {/* ADMIN FLOATING BAR */}
       {isAdminMode && (
-          <div className="fixed bottom-0 left-0 w-full bg-slate-900 text-white p-4 flex justify-between items-center z-50 border-t-4 border-orange-500 shadow-[0_-5px_20px_rgba(0,0,0,0.3)]">
+          <div className="fixed bottom-0 left-0 w-full bg-slate-900 text-white p-4 flex justify-between items-center z-50 border-t-4 border-orange-500 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
               <div className="flex items-center gap-3">
-                  <div className="w-4 h-4 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_#22c55e]"></div>
-                  <span className="font-bold text-lg">CHẾ ĐỘ ADMIN</span>
+                  <div className="w-4 h-4 bg-green-500 rounded-full animate-pulse shadow-[0_0_15px_#22c55e]"></div>
+                  <span className="font-bold text-xl">CHẾ ĐỘ ADMIN</span>
               </div>
               <button 
                 onClick={forceSaveAll} 
-                className={`bg-red-600 hover:bg-red-700 text-white px-8 py-4 rounded-xl font-bold flex items-center gap-3 text-lg shadow-lg transform active:scale-95 transition ${saveStatus === 'saving' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-3 text-lg shadow-xl transform active:scale-95 transition-all ${saveStatus === 'saving' ? 'opacity-50 cursor-not-allowed' : ''}`}
                 disabled={saveStatus === 'saving'}
               >
                   {saveStatus === 'saving' ? 'ĐANG LƯU...' : <><Save size={24}/> LƯU & THOÁT</>}
@@ -578,13 +816,13 @@ const OnePageMechanic = () => {
 
       {/* MODAL LOGIN */}
       {showLoginModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl p-8 w-full max-w-sm animate-zoom-in shadow-2xl">
-                <h3 className="font-bold text-2xl mb-6 text-center text-slate-900">Đăng nhập chủ tiệm</h3>
-                <input type="password" className="w-full border-2 border-gray-300 p-4 rounded-xl mb-6 text-center text-2xl tracking-widest focus:border-orange-500 outline-none font-bold" placeholder="••••" value={adminPass} onChange={(e) => setAdminPass(e.target.value)} autoFocus/>
-                <button onClick={handleLogin} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-slate-800 shadow-lg">TRUY CẬP</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+            <div className="bg-white rounded-3xl p-8 w-full max-w-sm animate-zoom-in shadow-2xl border-4 border-orange-500">
+                <h3 className="font-black text-3xl mb-6 text-center text-slate-900 uppercase">Đăng nhập chủ tiệm</h3>
+                <input type="password" className="w-full border-2 border-gray-300 p-4 rounded-xl mb-6 text-center text-3xl tracking-widest focus:border-orange-500 outline-none font-bold bg-gray-50 transition-colors" placeholder="••••" value={adminPass} onChange={(e) => setAdminPass(e.target.value)} autoFocus/>
+                <button onClick={handleLogin} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-xl hover:bg-slate-800 shadow-xl transform active:scale-95 transition-all">TRUY CẬP</button>
                 {(!shopInfo.adminPassword || shopInfo.adminPassword === '1234') && (
-                    <p className="text-center text-sm text-red-500 mt-4 font-medium bg-red-50 p-2 rounded">Mật khẩu mặc định: 1234</p>
+                    <p className="text-center text-base text-red-500 mt-6 font-bold bg-red-50 p-3 rounded-xl border border-red-100">Mật khẩu mặc định: 1234</p>
                 )}
             </div>
         </div>
@@ -593,8 +831,10 @@ const OnePageMechanic = () => {
       {/* Styles */}
       <style>{`
         .animate-fade-in { animation: fadeIn 0.5s ease-out; }
+        .animate-slide-up { animation: slideUp 0.3s ease-out; }
         .animate-zoom-in { animation: zoomIn 0.3s ease-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes zoomIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
       `}</style>
     </div>
