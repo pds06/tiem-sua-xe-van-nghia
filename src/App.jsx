@@ -27,7 +27,11 @@ import {
   ArrowDown,
   Tag,
   Filter,
-  Lock
+  Lock,
+  Loader,
+  Database,
+  ShieldAlert,
+  Copy
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
@@ -37,26 +41,22 @@ import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "firebase/firestor
 
 // --- FIREBASE SETUP ---
 const firebaseConfig = {
-    apiKey: "AIzaSyBoGEjONZazyxz1J4FY2cXhB_x31ZLZsLE",
-    authDomain: "van-nghia-moto.firebaseapp.com",
-    projectId: "van-nghia-moto",
-    storageBucket: "van-nghia-moto.firebasestorage.app",
-    messagingSenderId: "782684807237",
-    appId: "1:782684807237:web:8e92462847d1848448832c",
-    measurementId: "G-ZDSKMJC6ZY"
+  apiKey: "AIzaSyBoGEjONZazyxz1J4FY2cXhB_x31ZLZsLE",
+  authDomain: "van-nghia-moto.firebaseapp.com",
+  projectId: "van-nghia-moto",
+  storageBucket: "van-nghia-moto.firebasestorage.app",
+  messagingSenderId: "782684807237",
+  appId: "1:782684807237:web:8e92462847d1848448832c",
+  measurementId: "G-ZDSKMJC6ZY"
 };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-
-// Đặt tên cố định cho ID ứng dụng để dữ liệu không bị mất khi reload
-// Bạn có thể đổi 'shop-v1' thành tên bất kỳ, nhưng phải giữ nguyên sau này.
-const appId = 'shop-data-v1';
+const appId = 'van-nghia-moto-data'; 
 
 // --- COMPONENT EDITABLE TEXT ---
 const EditableText = ({ isAdminMode, value, onChange, className, placeholder, multiline = false, style }) => {
-  // Safe string handling
   const safeValue = value === null || value === undefined ? '' : value;
 
   if (!isAdminMode) {
@@ -99,16 +99,16 @@ const OnePageMechanic = () => {
   const [newPassword, setNewPassword] = useState(''); 
   const fileInputRef = useRef(null); 
   const [isDataLoaded, setIsDataLoaded] = useState(false); 
+  const [saveStatus, setSaveStatus] = useState('idle');
+  const [authStatus, setAuthStatus] = useState('checking');
+  const [permissionError, setPermissionError] = useState(false);
 
   // --- STATE DỮ LIỆU ---
   const [activeTab, setActiveTab] = useState('services');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [bookingData, setBookingData] = useState({ name: '', phone: '', bike: '', service: '', time: '' });
-  
-  // State mới cho việc lọc tag
   const [selectedTag, setSelectedTag] = useState('Tất cả');
 
-  // Dữ liệu mặc định
   const defaultShopInfo = {
     name: "VĂN NGHĨA MOTO",
     tagline: "Chuẩn xác - Chất lượng - Chuyên nghiệp",
@@ -125,32 +125,9 @@ const OnePageMechanic = () => {
   };
 
   const defaultServices = [
-    { 
-      id: 1, 
-      name: "Thay nhớt Motul/Castrol", 
-      iconUrl: null, 
-      desc: "Nhớt chính hãng, miễn phí công thay.",
-      variants: [
-        { name: "Xe Số", price: "120.000đ" },
-        { name: "Xe Tay Ga", price: "140.000đ" }
-      ]
-    },
-    { 
-      id: 2, 
-      name: "Vệ sinh nồi xe tay ga", 
-      price: "150.000đ", 
-      iconUrl: null, 
-      desc: "Khắc phục rung đầu, lì máy, hao xăng.",
-      variants: [] 
-    },
-    { 
-      id: 3, 
-      name: "Vá lốp không ruột", 
-      price: "30.000đ / lỗ", 
-      iconUrl: null, 
-      desc: "Vá nấm chuẩn kỹ thuật, không hại lốp.",
-      variants: []
-    }
+    { id: 1, name: "Thay nhớt Motul/Castrol", iconUrl: null, desc: "Nhớt chính hãng, miễn phí công thay.", variants: [{ name: "Xe Số", price: "120.000đ" }, { name: "Xe Tay Ga", price: "140.000đ" }] },
+    { id: 2, name: "Vệ sinh nồi xe tay ga", price: "150.000đ", iconUrl: null, desc: "Khắc phục rung đầu, lì máy, hao xăng.", variants: [] },
+    { id: 3, name: "Vá lốp không ruột", price: "30.000đ / lỗ", iconUrl: null, desc: "Vá nấm chuẩn kỹ thuật, không hại lốp.", variants: [] }
   ];
 
   const defaultParts = [
@@ -159,69 +136,65 @@ const OnePageMechanic = () => {
     { id: 3, name: "Gương gù CRG", price: "250.000đ", img: "🔍", stock: false, imageFile: null, tags: ["Kiểng"] },
   ];
 
-  // --- KHỞI TẠO STATE ---
   const [shopInfo, setShopInfo] = useState(defaultShopInfo);
   const [services, setServices] = useState(defaultServices);
   const [parts, setParts] = useState(defaultParts);
   const [bookings, setBookings] = useState([]);
   const [user, setUser] = useState(null);
 
-  // --- FIREBASE DATA SYNC ---
+  // --- FIREBASE AUTH ---
   useEffect(() => {
     const initAuth = async () => {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-            await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
+        try {
             await signInAnonymously(auth);
+            setAuthStatus('logged-in');
+        } catch (error) {
+            console.error("Lỗi đăng nhập:", error);
+            setAuthStatus('error');
         }
     };
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setUser);
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+        if(u) setAuthStatus('logged-in');
+        setUser(u);
+    });
     return () => unsubscribe();
   }, []);
 
-  // Lắng nghe dữ liệu từ Firestore (READ)
-  // FIX: Thêm 'content' vào đường dẫn để đảm bảo số lượng segment chẵn (6)
+  // --- FIREBASE READ ---
   useEffect(() => {
     if (!user) return;
 
-    const shopRef = doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info');
-    const servicesRef = doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list');
-    const partsRef = doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list');
-    const bookingsRef = doc(db, 'artifacts', appId, 'public', 'data', 'content', 'bookings_list');
+    const paths = {
+        shop: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'),
+        services: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'),
+        parts: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'),
+        bookings: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'bookings_list')
+    };
 
-    const unsubShop = onSnapshot(shopRef, (docSnap) => {
-        if (docSnap.exists()) {
-            setShopInfo(prev => ({ ...prev, ...docSnap.data() }));
-        } else {
-            setDoc(shopRef, defaultShopInfo);
+    const handleSnapshotError = (error) => {
+        console.error("Lỗi đọc dữ liệu:", error);
+        if (error.code === 'permission-denied') {
+            setPermissionError(true);
         }
-    });
+    };
 
-    const unsubServices = onSnapshot(servicesRef, (docSnap) => {
-        if (docSnap.exists()) {
-            setServices(docSnap.data().items || []);
-        } else {
-            setDoc(servicesRef, { items: defaultServices });
-        }
-    });
+    const unsubShop = onSnapshot(paths.shop, (docSnap) => {
+        if (docSnap.exists()) setShopInfo(prev => ({ ...prev, ...docSnap.data() }));
+    }, handleSnapshotError);
 
-    const unsubParts = onSnapshot(partsRef, (docSnap) => {
-        if (docSnap.exists()) {
-            setParts(docSnap.data().items || []);
-        } else {
-            setDoc(partsRef, { items: defaultParts });
-        }
-    });
+    const unsubServices = onSnapshot(paths.services, (docSnap) => {
+        if (docSnap.exists()) setServices(docSnap.data().items || []);
+    }, handleSnapshotError);
 
-    const unsubBookings = onSnapshot(bookingsRef, (docSnap) => {
-        if (docSnap.exists()) {
-            setBookings(docSnap.data().items || []);
-        } else {
-            setDoc(bookingsRef, { items: [] });
-        }
+    const unsubParts = onSnapshot(paths.parts, (docSnap) => {
+        if (docSnap.exists()) setParts(docSnap.data().items || []);
+    }, handleSnapshotError);
+
+    const unsubBookings = onSnapshot(paths.bookings, (docSnap) => {
+        if (docSnap.exists()) setBookings(docSnap.data().items || []);
         setIsDataLoaded(true);
-    });
+    }, handleSnapshotError);
 
     return () => {
         unsubShop();
@@ -231,94 +204,142 @@ const OnePageMechanic = () => {
     };
   }, [user]);
 
-  // Lưu dữ liệu lên Firestore (WRITE)
-  // FIX: Cập nhật đường dẫn tương ứng khi lưu
-  useEffect(() => {
+  // --- FIREBASE WRITE (AUTO SAVE) ---
+  const saveDataToFirebase = async (collectionName, data) => {
       if (!isDataLoaded || !user) return;
-      const timer = setTimeout(() => {
-          setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'), shopInfo);
-      }, 1000);
+      setSaveStatus('saving');
+      try {
+          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', collectionName), data);
+          setSaveStatus('idle');
+      } catch (error) {
+          console.error("Lỗi lưu tự động:", error);
+          if (error.code === 'permission-denied') {
+              setPermissionError(true);
+              setSaveStatus('permission-denied');
+          } else {
+              setSaveStatus('error');
+          }
+      }
+  };
+
+  // --- FORCE SAVE FUNCTION (Dùng cho nút Lưu & Thoát) ---
+  const forceSaveAll = async () => {
+      if (!user) return;
+      setSaveStatus('saving');
+      try {
+          // Lưu đồng thời tất cả các mục
+          await Promise.all([
+              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'), shopInfo),
+              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'), { items: services }),
+              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'), { items: parts }),
+              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'bookings_list'), { items: bookings })
+          ]);
+          setSaveStatus('idle');
+          setIsAdminMode(false); // Chỉ thoát khi đã lưu xong
+          alert("✅ Đã lưu dữ liệu thành công lên đám mây!");
+      } catch (error) {
+          console.error("Lỗi lưu thủ công:", error);
+          setSaveStatus('error');
+          alert(`❌ Lỗi lưu dữ liệu: ${error.message}\n\nCó thể do:\n1. Ảnh quá nặng (tổng > 1MB)\n2. Chưa mở quyền Firebase Rules.`);
+      }
+  };
+
+  useEffect(() => {
+      if (!isDataLoaded) return;
+      const timer = setTimeout(() => saveDataToFirebase('shop_info', shopInfo), 2000);
       return () => clearTimeout(timer);
   }, [shopInfo, isDataLoaded, user]);
 
   useEffect(() => {
-      if (!isDataLoaded || !user) return;
-      const timer = setTimeout(() => {
-          setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'), { items: services });
-      }, 1000);
+      if (!isDataLoaded) return;
+      const timer = setTimeout(() => saveDataToFirebase('services_list', { items: services }), 2000);
       return () => clearTimeout(timer);
   }, [services, isDataLoaded, user]);
 
   useEffect(() => {
-      if (!isDataLoaded || !user) return;
-      const timer = setTimeout(() => {
-          setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'), { items: parts });
-      }, 1000);
+      if (!isDataLoaded) return;
+      const timer = setTimeout(() => saveDataToFirebase('parts_list', { items: parts }), 2000);
       return () => clearTimeout(timer);
   }, [parts, isDataLoaded, user]);
 
   useEffect(() => {
-      if (!isDataLoaded || !user) return;
-      const timer = setTimeout(() => {
-          setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'bookings_list'), { items: bookings });
-      }, 1000);
+      if (!isDataLoaded) return;
+      const timer = setTimeout(() => saveDataToFirebase('bookings_list', { items: bookings }), 2000);
       return () => clearTimeout(timer);
   }, [bookings, isDataLoaded, user]);
 
-  
   useEffect(() => { document.title = shopInfo.name || "Tiệm Sửa Xe"; }, [shopInfo.name]);
 
-  // --- LOGIC LỌC TAG ---
+  // --- LOGIC ---
   const uniqueTags = ['Tất cả', ...new Set(parts.flatMap(part => part.tags || []))];
+  const filteredParts = selectedTag === 'Tất cả' ? parts : parts.filter(part => part.tags && part.tags.includes(selectedTag));
 
-  const filteredParts = selectedTag === 'Tất cả' 
-    ? parts 
-    : parts.filter(part => part.tags && part.tags.includes(selectedTag));
-
-
-  // --- HÀM XỬ LÝ ẢNH ---
+  // --- HÀM XỬ LÝ ẢNH (NÉN ẢNH CHẤT LƯỢNG CAO HƠN - 800px, 0.8) ---
   const handleImageUpload = (e, targetState, setTargetState, fieldName, itemId = null) => {
     const file = e.target.files[0];
     if (file) {
+      // Bỏ giới hạn size đầu vào, để canvas tự nén
       const reader = new FileReader();
-      reader.onloadend = () => {
-        if (itemId !== null) {
-          const updatedList = targetState.map(item => 
-            item.id === itemId ? { ...item, [fieldName]: reader.result } : item
-          );
-          setTargetState(updatedList);
-        } else {
-          setTargetState({ ...targetState, [fieldName]: reader.result });
-        }
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // TĂNG KÍCH THƯỚC LÊN 800px (Rõ hơn)
+            const MAX_WIDTH = 800; 
+            const MAX_HEIGHT = 800;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+                if (width > MAX_WIDTH) {
+                    height *= MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                }
+            } else {
+                if (height > MAX_HEIGHT) {
+                    width *= MAX_HEIGHT / height;
+                    height = MAX_HEIGHT;
+                }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // TĂNG CHẤT LƯỢNG LÊN 0.8 (Đẹp hơn)
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+            if (itemId !== null) {
+                const updatedList = targetState.map(item => item.id === itemId ? { ...item, [fieldName]: compressedDataUrl } : item);
+                setTargetState(updatedList);
+            } else { 
+                setTargetState({ ...targetState, [fieldName]: compressedDataUrl }); 
+            }
+        };
+        img.onerror = () => {
+            alert("Không thể đọc file ảnh này.");
+        };
+        img.src = event.target.result;
       };
       reader.readAsDataURL(file);
     }
   };
 
-  // --- HÀM SẮP XẾP ---
   const moveItem = (index, direction, list, setList) => {
     const newList = [...list];
-    if (direction === 'up' && index > 0) {
-      [newList[index], newList[index - 1]] = [newList[index - 1], newList[index]];
-    } else if (direction === 'down' && index < list.length - 1) {
-      [newList[index], newList[index + 1]] = [newList[index + 1], newList[index]];
-    }
+    if (direction === 'up' && index > 0) { [newList[index], newList[index - 1]] = [newList[index - 1], newList[index]]; }
+    else if (direction === 'down' && index < list.length - 1) { [newList[index], newList[index + 1]] = [newList[index + 1], newList[index]]; }
     setList(newList);
   };
 
-  // --- HÀM QUẢN LÝ TAG ---
   const addTag = (partId) => {
-    const tag = prompt("Nhập tên nhóm (VD: Lốp, Nhớt, Honda...):");
+    const tag = prompt("Nhập tên nhóm:");
     if (tag) {
-        const cleanTag = tag.trim(); 
-        if(!cleanTag) return;
-        
+        const cleanTag = tag.trim(); if(!cleanTag) return;
         const newParts = parts.map(p => {
-            if (p.id === partId) {
-                const currentTags = p.tags || [];
-                if (currentTags.includes(cleanTag)) return p;
-                return { ...p, tags: [...currentTags, cleanTag] };
-            }
+            if (p.id === partId) { const currentTags = p.tags || []; if (currentTags.includes(cleanTag)) return p; return { ...p, tags: [...currentTags, cleanTag] }; }
             return p;
         });
         setParts(newParts);
@@ -326,63 +347,85 @@ const OnePageMechanic = () => {
   };
 
   const removeTag = (partId, tagIndex) => {
-      const newParts = parts.map(p => {
-          if (p.id === partId && p.tags) {
-              return { ...p, tags: p.tags.filter((_, i) => i !== tagIndex) };
-          }
-          return p;
-      });
+      const newParts = parts.map(p => { if (p.id === partId && p.tags) { return { ...p, tags: p.tags.filter((_, i) => i !== tagIndex) }; } return p; });
       setParts(newParts);
   };
 
-  // --- HÀM ĐỔI MẬT KHẨU ---
   const handleChangePassword = () => {
       if (newPassword && newPassword.length > 0) {
-          if (window.confirm(`Bạn có chắc muốn đổi mật khẩu thành: ${newPassword}?`)) {
+          if (window.confirm(`Đổi mật khẩu thành: ${newPassword}?`)) {
               setShopInfo(prev => ({...prev, adminPassword: newPassword}));
               setNewPassword('');
-              alert("Đổi mật khẩu thành công! Hãy ghi nhớ mật khẩu mới.");
+              alert("Đổi mật khẩu thành công!");
           }
-      } else {
-          alert("Vui lòng nhập mật khẩu mới.");
       }
   };
 
-  // --- LOGIC ---
   const handleLogin = () => {
     const currentPass = shopInfo.adminPassword || "1234";
-    if (adminPass === currentPass) { 
-        setIsAdminMode(true); 
-        setShowLoginModal(false); 
-        setAdminPass(''); 
-    } else { 
-        alert('Sai mật khẩu!'); 
-    }
+    if (adminPass === currentPass) { setIsAdminMode(true); setShowLoginModal(false); setAdminPass(''); } else { alert('Sai mật khẩu!'); }
   };
 
   const deleteBooking = (id) => { if(window.confirm("Xóa?")) setBookings(bookings.filter(b => b.id !== id)); };
   const createCalendarReminder = () => { window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent("Bảo dưỡng xe tại " + shopInfo.name)}`, '_blank'); };
-
   const addNewService = () => setServices([...services, { id: Date.now(), name: "Dịch vụ mới", price: "0đ", iconUrl: null, desc: "Mô tả...", variants: [] }]);
   const deleteService = (id) => { if(window.confirm("Xóa?")) setServices(services.filter(s => s.id !== id)); };
   const addNewPart = () => setParts([...parts, { id: Date.now(), name: "Phụ tùng mới", price: "0đ", img: "📦", stock: true, tags: [] }]);
 
+  const rulesSnippet = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}`;
+
   return (
     <div className={`min-h-screen bg-gray-50 text-gray-800 font-sans pb-20 md:pb-0 relative ${isAdminMode ? 'mb-24' : ''}`}>
       
+      {/* MODAL LỖI QUYỀN TRUY CẬP */}
+      {permissionError && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-slide-up">
+                <div className="bg-red-600 text-white p-4 flex items-center gap-2">
+                    <ShieldAlert size={24}/>
+                    <h2 className="font-bold text-lg">CẦN CẤU HÌNH FIREBASE RULES</h2>
+                </div>
+                <div className="p-6 space-y-4">
+                    <p className="text-gray-700">Web không thể lưu dữ liệu vì Firebase đang chặn quyền ghi. Hãy làm theo các bước sau:</p>
+                    <ol className="list-decimal pl-5 text-sm space-y-2 text-gray-600">
+                        <li>Truy cập <a href="https://console.firebase.google.com/" target="_blank" className="text-blue-600 underline font-bold">Firebase Console</a> {'>'} Chọn dự án <strong>van-nghia-moto</strong>.</li>
+                        <li>Ở menu trái, chọn <strong>Firestore Database</strong> {'>'} Tab <strong>Rules</strong>.</li>
+                        <li>Dán đoạn code dưới đây vào và bấm Publish:</li>
+                    </ol>
+                    
+                    <div className="bg-slate-900 text-green-400 p-4 rounded-lg font-mono text-xs md:text-sm overflow-x-auto relative group">
+                        <pre>{rulesSnippet}</pre>
+                        <button onClick={() => navigator.clipboard.writeText(rulesSnippet)} className="absolute top-2 right-2 bg-white/20 hover:bg-white/40 text-white px-2 py-1 rounded text-xs flex items-center gap-1"><Copy size={12}/> Copy</button>
+                    </div>
+
+                    <div className="flex justify-end pt-4">
+                        <button onClick={() => window.location.reload()} className="bg-red-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-red-700">Đã sửa xong, tải lại trang</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
+
       {/* HEADER */}
       <header className="bg-slate-900 text-white sticky top-0 z-40 shadow-lg">
         <div className="w-full px-4 py-3 flex justify-between items-center">
           <div className="flex items-center space-x-3 flex-1">
             <div className="relative group shrink-0">
                 {shopInfo.logoUrl ? (
-                    <img src={shopInfo.logoUrl} alt="Logo" className="w-10 h-10 rounded object-cover border border-orange-500"/>
+                    <img src={shopInfo.logoUrl} alt="Logo" className="w-16 h-16 rounded object-cover border border-orange-500 bg-white"/>
                 ) : (
-                    <div className="w-10 h-10 bg-orange-500 rounded flex items-center justify-center text-xl font-bold">TM</div>
+                    <div className="w-16 h-16 bg-orange-500 rounded flex items-center justify-center text-xl font-bold">TM</div>
                 )}
                 {isAdminMode && (
                     <label className="absolute inset-0 flex items-center justify-center bg-black/50 cursor-pointer rounded opacity-0 group-hover:opacity-100 transition">
-                        <Upload size={14} className="text-white"/>
+                        <Upload size={18} className="text-white"/>
                         <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, shopInfo, setShopInfo, 'logoUrl')}/>
                     </label>
                 )}
@@ -418,20 +461,33 @@ const OnePageMechanic = () => {
         <div className="bg-white border-b-2 border-orange-500 p-4">
             <div className="w-full px-4">
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 gap-4">
-                    <div className="flex items-center gap-2">
-                        <List className="text-orange-500"/>
-                        <h2 className="font-bold text-xl">Quản lý Đặt Lịch ({bookings.length})</h2>
+                    <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                            <List className="text-orange-500"/>
+                            <h2 className="font-bold text-xl">Quản lý & Trạng thái</h2>
+                        </div>
+                        
+                        <div className="flex gap-2 text-xs font-bold mt-1">
+                            {authStatus === 'checking' && <span className="text-gray-500">Đang kết nối...</span>}
+                            {authStatus === 'logged-in' && <span className="text-green-600 flex items-center gap-1"><Wifi size={12}/> Đã kết nối Cloud</span>}
+                            {authStatus === 'error' && <span className="text-red-500 flex items-center gap-1"><ShieldAlert size={12}/> Lỗi kết nối Auth</span>}
+
+                            <span className="text-gray-300">|</span>
+
+                            {saveStatus === 'idle' && <span className="text-green-600">Dữ liệu an toàn</span>}
+                            {saveStatus === 'saving' && <span className="text-orange-500 animate-pulse">Đang lưu lên mây...</span>}
+                            {saveStatus === 'error' && <span className="text-red-500">Lỗi lưu! (Kiểm tra ảnh)</span>}
+                            {saveStatus === 'permission-denied' && (
+                                <span className="text-red-600 bg-red-100 px-2 py-0.5 rounded animate-pulse flex items-center gap-1 cursor-pointer" onClick={() => setPermissionError(true)}>
+                                    <ShieldAlert size={12}/> LỖI QUYỀN (Bấm để xem cách sửa)
+                                </span>
+                            )}
+                        </div>
                     </div>
-                    {/* ĐỔI MẬT KHẨU */}
-                    <div className="flex items-center gap-2 bg-gray-100 p-2 rounded-lg">
+
+                    <div className="flex items-center gap-2 bg-gray-100 p-2 rounded-lg mt-2 lg:mt-0">
                         <Lock size={16} className="text-gray-500"/>
-                        <input 
-                            type="text" 
-                            placeholder="Mật khẩu mới..." 
-                            className="bg-transparent text-sm outline-none w-32"
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                        />
+                        <input type="text" placeholder="Mật khẩu mới..." className="bg-transparent text-sm outline-none w-32" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}/>
                         <button onClick={handleChangePassword} className="bg-slate-900 text-white text-xs px-2 py-1 rounded hover:bg-slate-700">Đổi</button>
                     </div>
                 </div>
@@ -467,7 +523,7 @@ const OnePageMechanic = () => {
       </div>
 
       {/* MAIN CONTENT AREA */}
-      <main className="w-full px-4 py-8">
+      <main className="w-full px-4 md:px-8 lg:px-12 py-8">
         
         {/* SERVICES TAB */}
         {activeTab === 'services' && (
@@ -545,7 +601,6 @@ const OnePageMechanic = () => {
                 {isAdminMode && <button onClick={addNewPart} className="bg-green-600 text-white px-3 py-1 rounded text-sm flex items-center gap-1 hover:bg-green-700"><Plus size={16}/> Thêm</button>}
             </div>
 
-            {/* THANH LỌC TAG */}
             <div className="flex flex-wrap gap-2 mb-6">
                 <div className="flex items-center gap-1 mr-2 text-gray-500 text-sm">
                     <Filter size={16}/> Lọc:
@@ -565,7 +620,6 @@ const OnePageMechanic = () => {
                 ))}
             </div>
 
-            {/* DANH SÁCH PHỤ TÙNG */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
               {filteredParts.length === 0 ? (
                   <div className="col-span-full text-center py-10 text-gray-400">Không tìm thấy sản phẩm nào thuộc nhóm "{selectedTag}".</div>
@@ -667,7 +721,7 @@ const OnePageMechanic = () => {
 
       {/* FOOTER */}
       <footer className="bg-slate-900 text-slate-300 py-8 px-4 mt-8 pb-24">
-        <div className="w-full px-4 grid md:grid-cols-2 gap-8">
+        <div className="w-full px-4 md:px-8 lg:px-12 grid md:grid-cols-2 gap-8">
           <div>
             <h4 className="text-white font-bold text-lg mb-4">{shopInfo.name}</h4>
             <div className="space-y-3 text-sm">
@@ -702,7 +756,13 @@ const OnePageMechanic = () => {
                   <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
                   <span className="font-bold text-sm">CHẾ ĐỘ QUẢN LÝ (ADMIN)</span>
               </div>
-              <button onClick={() => setIsAdminMode(false)} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded font-bold flex items-center gap-2 text-sm"><Save size={16}/> LƯU & THOÁT</button>
+              <button 
+                onClick={forceSaveAll} 
+                className={`bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded font-bold flex items-center gap-2 text-sm ${saveStatus === 'saving' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={saveStatus === 'saving'}
+              >
+                  {saveStatus === 'saving' ? 'ĐANG LƯU...' : <><Save size={16}/> LƯU & THOÁT</>}
+              </button>
           </div>
       )}
 
