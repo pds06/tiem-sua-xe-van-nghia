@@ -95,6 +95,70 @@ const EditableText = ({ isAdminMode, value, onChange, className, placeholder, mu
   );
 };
 
+// --- COMPONENT CATEGORY MANAGER MODAL (KHÔI PHỤC) ---
+const CategoryManagerModal = ({ categories, onReorder, onRename, onClose }) => {
+    const [editingIndex, setEditingIndex] = useState(-1);
+    const [editValue, setEditValue] = useState("");
+
+    const startEdit = (index, currentName) => {
+        setEditingIndex(index);
+        setEditValue(currentName);
+    };
+
+    const saveEdit = (index) => {
+        if (editValue.trim()) {
+            onRename(categories[index], editValue.trim());
+        }
+        setEditingIndex(-1);
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-zoom-in" onClick={e => e.stopPropagation()}>
+                <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
+                    <h3 className="font-bold flex items-center gap-2"><List size={20}/> Sắp xếp & Sửa tên nhóm</h3>
+                    <button onClick={onClose}><X size={20}/></button>
+                </div>
+                <div className="p-4 max-h-[60vh] overflow-y-auto">
+                    <p className="text-sm text-gray-500 mb-3 italic">Bấm mũi tên để sắp xếp, bấm bút chì để đổi tên.</p>
+                    <div className="space-y-2">
+                        {categories.map((cat, idx) => (
+                            <div key={idx} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
+                                {editingIndex === idx ? (
+                                    <div className="flex-1 flex gap-2 mr-2">
+                                        <input 
+                                            autoFocus
+                                            className="border border-orange-400 rounded p-1 flex-1 text-base outline-none"
+                                            value={editValue}
+                                            onChange={e => setEditValue(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && saveEdit(idx)}
+                                        />
+                                        <button onClick={() => saveEdit(idx)} className="bg-green-600 text-white px-2 rounded hover:bg-green-700"><CheckCircle size={18}/></button>
+                                    </div>
+                                ) : (
+                                    <span className="font-bold text-slate-700 flex-1 text-base">{cat}</span>
+                                )}
+                                
+                                <div className="flex gap-1">
+                                    {editingIndex !== idx && (
+                                        <button onClick={() => startEdit(idx, cat)} className="p-2 text-blue-600 hover:bg-blue-100 rounded" title="Đổi tên"><Edit3 size={18}/></button>
+                                    )}
+                                    <button onClick={() => onReorder(idx, 'up')} disabled={idx === 0} className={`p-2 rounded ${idx === 0 ? 'text-gray-300' : 'text-slate-600 hover:bg-slate-200'}`}><ArrowUp size={18}/></button>
+                                    <button onClick={() => onReorder(idx, 'down')} disabled={idx === categories.length - 1} className={`p-2 rounded ${idx === categories.length - 1 ? 'text-gray-300' : 'text-slate-600 hover:bg-slate-200'}`}><ArrowDown size={18}/></button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    {categories.length === 0 && <p className="text-center text-gray-400 py-4">Chưa có nhóm nào.</p>}
+                </div>
+                <div className="p-3 border-t bg-gray-50 text-right">
+                    <button onClick={onClose} className="bg-slate-900 text-white px-6 py-2 rounded-lg text-base font-bold">Xong</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- COMPONENT ITEM DETAIL MODAL ---
 const ItemDetailModal = ({ item, onClose }) => {
     if (!item) return null;
@@ -124,15 +188,18 @@ const ItemDetailModal = ({ item, onClose }) => {
                 </div>
                 <div className="p-6 overflow-y-auto">
                     <h3 className="text-2xl font-bold text-slate-900 mb-3 leading-tight">{item.name}</h3>
+                    
                     {(!item.variants || item.variants.length === 0) && (
                         <div className="text-3xl font-extrabold text-orange-600 mb-6">{item.price}</div>
                     )}
+
                     {item.desc && item.desc.trim() !== "" && (
                         <div className="mb-6">
                             <h4 className="text-sm font-bold text-gray-500 uppercase mb-2">Thông tin chi tiết</h4>
                             <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap">{item.desc}</p>
                         </div>
                     )}
+
                     {item.variants && item.variants.length > 0 && (
                         <div className="mb-6">
                              <h4 className="text-sm font-bold text-gray-500 uppercase mb-3">Bảng giá</h4>
@@ -146,6 +213,7 @@ const ItemDetailModal = ({ item, onClose }) => {
                              </div>
                         </div>
                     )}
+                    
                     {item.stock !== undefined && (
                         <div className={`text-lg font-bold mb-6 flex items-center justify-center gap-2 p-3 rounded-xl border ${item.stock ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
                             {item.stock ? <CheckCircle size={24}/> : <AlertCircle size={24}/>}
@@ -222,6 +290,8 @@ const OnePageMechanic = () => {
   const [permissionError, setPermissionError] = useState(false);
   const [viewItem, setViewItem] = useState(null);
   const [editingTagItem, setEditingTagItem] = useState(null);
+  const [showCategoryManager, setShowCategoryManager] = useState(false); // Modal quản lý danh mục
+  const [categoriesOrder, setCategoriesOrder] = useState([]); // Thứ tự danh mục
 
   const [activeTab, setActiveTab] = useState('services');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -267,13 +337,16 @@ const OnePageMechanic = () => {
     const paths = {
         shop: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'),
         services: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'),
-        parts: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list')
+        parts: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'),
+        categories: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list')
     };
     const handleErr = (error) => { if (error.code === 'permission-denied') setPermissionError(true); };
     const uS = onSnapshot(paths.shop, (s) => { if(s.exists()) setShopInfo(prev => ({...defaultShopInfo, ...prev, ...s.data()})); }, handleErr);
     const uSv = onSnapshot(paths.services, (s) => { if(s.exists()) { const d = s.data().items||[]; setServices(d.map(i => ({...i, images: i.images || (i.iconUrl ? [i.iconUrl] : []), variants: i.variants || []}))); } }, handleErr);
     const uP = onSnapshot(paths.parts, (s) => { if(s.exists()) { const d = s.data().items||[]; setParts(d.map(i => ({...i, images: i.images || (i.imageFile ? [i.imageFile] : []), variants: i.variants || [], desc: i.desc || ""}))); } setIsDataLoaded(true); }, handleErr);
-    return () => { uS(); uSv(); uP(); };
+    const uC = onSnapshot(paths.categories, (s) => { if(s.exists()) setCategoriesOrder(s.data().items||[]); }, handleErr);
+    
+    return () => { uS(); uSv(); uP(); uC(); };
   }, [user]);
 
   const forceSaveAll = async () => {
@@ -284,18 +357,40 @@ const OnePageMechanic = () => {
               setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'), shopInfo),
               setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'), { items: services }),
               setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'), { items: parts }),
+              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list'), { items: categoriesOrder })
           ]);
           setSaveStatus('idle'); setIsAdminMode(false); alert("✅ Đã lưu dữ liệu!");
       } catch (error) { setSaveStatus('error'); alert(`❌ Lỗi lưu: ${error.message}`); }
   };
   
+  // Debounce saves
   useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'), shopInfo), 2000); return () => clearTimeout(t); }, [shopInfo, isDataLoaded]);
   useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'), { items: services }), 2000); return () => clearTimeout(t); }, [services, isDataLoaded]);
   useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'), { items: parts }), 2000); return () => clearTimeout(t); }, [parts, isDataLoaded]);
+  useEffect(() => { if (!isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list'), { items: categoriesOrder }), 2000); return () => clearTimeout(t); }, [categoriesOrder, isDataLoaded]);
 
   useEffect(() => { document.title = shopInfo.name || "Tiệm Sửa Xe"; }, [shopInfo.name]);
 
-  const getCategories = (items) => { const cats = new Set(); items.forEach(item => { if (item.tags && item.tags.length > 0) { cats.add(item.tags[0]); } else { cats.add("Khác"); } }); return Array.from(cats).sort(); };
+  const getCategories = (items) => {
+      const usedTags = new Set();
+      items.forEach(item => {
+          if (item.tags && item.tags.length > 0) {
+              usedTags.add(item.tags[0]); 
+          } else {
+              usedTags.add("Khác");
+          }
+      });
+      const usedTagsArray = Array.from(usedTags);
+      return usedTagsArray.sort((a, b) => {
+          const idxA = categoriesOrder.indexOf(a);
+          const idxB = categoriesOrder.indexOf(b);
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          if (idxA !== -1) return -1;
+          if (idxB !== -1) return 1;
+          return a.localeCompare(b);
+      });
+  };
+
   const getAllUniqueTags = () => { const all = new Set(); parts.forEach(p => p.tags && p.tags.forEach(t => all.add(t))); return Array.from(all); };
   const partCategories = getCategories(parts);
 
@@ -374,8 +469,28 @@ const OnePageMechanic = () => {
       const list = type === 'parts' ? parts : services;
       const updatedList = list.map(item => item.id === id ? { ...item, tags: newTags } : item);
       setList(updatedList);
+      
+      // Auto add new tags to order list
+      newTags.forEach(t => { if (!categoriesOrder.includes(t)) { setCategoriesOrder(prev => [...prev, t]); } });
   };
 
+  const handleRenameCategory = (oldName, newName) => {
+      if (!newName || newName === oldName) return;
+      const newParts = parts.map(p => { if (p.tags && p.tags.includes(oldName)) { return { ...p, tags: p.tags.map(t => t === oldName ? newName : t) }; } return p; });
+      setParts(newParts);
+      const newOrder = categoriesOrder.map(c => c === oldName ? newName : c);
+      setCategoriesOrder(newOrder);
+  };
+
+  const handleReorderCategories = (index, direction) => {
+      const newOrder = [...partCategories]; 
+      if (direction === 'up' && index > 0) { [newOrder[index], newOrder[index - 1]] = [newOrder[index - 1], newOrder[index]]; } 
+      else if (direction === 'down' && index < newOrder.length - 1) { [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]]; }
+      const mergedOrder = Array.from(new Set([...newOrder, ...categoriesOrder]));
+      setCategoriesOrder(mergedOrder);
+  };
+
+  const deleteBooking = (id) => { if(window.confirm("Xóa?")) setBookings(bookings.filter(b => b.id !== id)); };
   const createCalendarReminder = () => { window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent("Bảo dưỡng xe tại " + shopInfo.name)}`, '_blank'); };
   const addNewService = () => setServices([...services, { id: Date.now(), name: "Dịch vụ mới", price: "0đ", images: [], desc: "Mô tả...", variants: [] }]);
   const deleteService = (id) => { if(window.confirm("Xóa?")) setServices(services.filter(s => s.id !== id)); };
@@ -490,14 +605,26 @@ const OnePageMechanic = () => {
   return (
     <div className={`min-h-screen bg-gray-50 text-gray-900 font-sans pb-24 md:pb-0 relative text-base md:text-lg`}>
       
+      {/* MODAL & ALERTS */}
       <ItemDetailModal item={viewItem} onClose={() => setViewItem(null)} />
       
+      {/* MODAL QUẢN LÝ TAG */}
       {editingTagItem && (
           <TagManagerModal 
             item={editingTagItem} 
             allTags={getAllUniqueTags()} 
             onClose={() => setEditingTagItem(null)} 
             onUpdateTags={updateTagsForItem}
+          />
+      )}
+      
+      {/* MODAL QUẢN LÝ DANH MỤC */}
+      {showCategoryManager && (
+          <CategoryManagerModal 
+            categories={partCategories}
+            onReorder={handleReorderCategories}
+            onRename={handleRenameCategory}
+            onClose={() => setShowCategoryManager(false)}
           />
       )}
 
@@ -578,7 +705,12 @@ const OnePageMechanic = () => {
           <div className="animate-fade-in">
             <div className="flex justify-between items-center mb-8 border-l-8 border-orange-500 pl-4 py-1 bg-gray-50 rounded-r-lg">
                 <h3 className="text-2xl md:text-3xl font-black uppercase text-slate-800">Phụ Tùng</h3>
-                {isAdminMode && <button onClick={addNewPart} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-green-700 shadow-md text-base"><Plus size={20}/> Thêm</button>}
+                {isAdminMode && (
+                    <div className="flex gap-2">
+                        <button onClick={() => setShowCategoryManager(true)} className="bg-blue-600 text-white px-3 py-2 rounded-lg font-bold flex items-center gap-1 hover:bg-blue-700 shadow-md text-sm"><List size={18}/> Sắp xếp</button>
+                        <button onClick={addNewPart} className="bg-green-600 text-white px-3 py-2 rounded-lg font-bold flex items-center gap-1 hover:bg-green-700 shadow-md text-sm"><Plus size={18}/> Thêm</button>
+                    </div>
+                )}
             </div>
 
             {partCategories.map(category => {
@@ -651,7 +783,7 @@ const OnePageMechanic = () => {
             </div>
             <div className="mt-6 text-center relative">
                 <p className="text-xs text-gray-400 mb-2 uppercase font-black tracking-wider">Quét QR chuyển khoản</p>
-                {shopInfo.qrCodeUrl ? <img src={shopInfo.qrCodeUrl} alt="QR" className="w-32 h-32 mx-auto rounded-xl border-4 border-white shadow-lg"/> : <div className="w-32 h-32 mx-auto bg-gray-700 flex items-center justify-center text-sm text-gray-400 rounded-xl">Chưa có QR</div>}
+                {shopInfo.qrCodeUrl ? <img src={shopInfo.qrCodeUrl} alt="QR" className="w-32 h-32 mx-auto rounded-xl border-4 border-white shadow-lg"/> : <div className="w-32 h-32 mx-auto bg-gray-700 flex items-center justify-center text-xs text-gray-400">Chưa có QR</div>}
                 {isAdminMode && <label className="absolute inset-0 bg-black/70 flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition rounded-xl"><span className="text-white font-bold bg-blue-600 px-4 py-2 rounded-lg shadow-lg text-sm">Đổi Ảnh QR</span><input type="file" className="hidden" accept="image/*" onChange={handleQRUpload}/></label>}
             </div>
           </div>
@@ -661,14 +793,14 @@ const OnePageMechanic = () => {
 
       {/* ADMIN FLOATING BAR */}
       {isAdminMode && (
-          <div className="fixed bottom-0 left-0 w-full bg-slate-900 text-white p-3 flex justify-between items-center z-50 border-t-4 border-orange-500 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+          <div className="fixed bottom-0 left-0 w-full bg-slate-900 text-white p-4 flex justify-between items-center z-50 border-t-4 border-orange-500 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
               <div className="flex items-center gap-3">
                   <div className="w-4 h-4 bg-green-500 rounded-full animate-pulse shadow-[0_0_15px_#22c55e]"></div>
-                  <span className="font-bold text-lg">CHẾ ĐỘ ADMIN</span>
+                  <span className="font-bold text-xl">CHẾ ĐỘ ADMIN</span>
               </div>
               <button 
                 onClick={forceSaveAll} 
-                className={`bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 text-base shadow-xl transform active:scale-95 transition-all ${saveStatus === 'saving' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 text-base shadow-xl transform active:scale-95 transition-all ${saveStatus === 'saving' ? 'opacity-50 cursor-not-allowed' : ''}`}
                 disabled={saveStatus === 'saving'}
               >
                   {saveStatus === 'saving' ? 'ĐANG LƯU...' : <><Save size={20}/> LƯU & THOÁT</>}
