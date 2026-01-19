@@ -96,6 +96,70 @@ const EditableText = ({ isAdminMode, value, onChange, className, placeholder, mu
   );
 };
 
+// --- COMPONENT CATEGORY MANAGER MODAL ---
+const CategoryManagerModal = ({ categories, onReorder, onRename, onClose }) => {
+    const [editingIndex, setEditingIndex] = useState(-1);
+    const [editValue, setEditValue] = useState("");
+
+    const startEdit = (index, currentName) => {
+        setEditingIndex(index);
+        setEditValue(currentName);
+    };
+
+    const saveEdit = (index) => {
+        if (editValue.trim()) {
+            onRename(categories[index], editValue.trim());
+        }
+        setEditingIndex(-1);
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-zoom-in" onClick={e => e.stopPropagation()}>
+                <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
+                    <h3 className="font-bold flex items-center gap-2"><List size={20}/> Sắp xếp & Sửa tên nhóm</h3>
+                    <button onClick={onClose}><X size={20}/></button>
+                </div>
+                <div className="p-4 max-h-[60vh] overflow-y-auto">
+                    <p className="text-sm text-gray-500 mb-3 italic">Bấm mũi tên để sắp xếp, bấm bút chì để đổi tên.</p>
+                    <div className="space-y-2">
+                        {categories.map((cat, idx) => (
+                            <div key={idx} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
+                                {editingIndex === idx ? (
+                                    <div className="flex-1 flex gap-2 mr-2">
+                                        <input 
+                                            autoFocus
+                                            className="border border-orange-400 rounded p-1 flex-1 text-base outline-none"
+                                            value={editValue}
+                                            onChange={e => setEditValue(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && saveEdit(idx)}
+                                        />
+                                        <button onClick={() => saveEdit(idx)} className="bg-green-600 text-white px-2 rounded hover:bg-green-700"><CheckCircle size={18}/></button>
+                                    </div>
+                                ) : (
+                                    <span className="font-bold text-slate-700 flex-1 text-base">{cat}</span>
+                                )}
+                                
+                                <div className="flex gap-1">
+                                    {editingIndex !== idx && (
+                                        <button onClick={() => startEdit(idx, cat)} className="p-2 text-blue-600 hover:bg-blue-100 rounded" title="Đổi tên"><Edit3 size={18}/></button>
+                                    )}
+                                    <button onClick={() => onReorder(idx, 'up')} disabled={idx === 0} className={`p-2 rounded ${idx === 0 ? 'text-gray-300' : 'text-slate-600 hover:bg-slate-200'}`}><ArrowUp size={18}/></button>
+                                    <button onClick={() => onReorder(idx, 'down')} disabled={idx === categories.length - 1} className={`p-2 rounded ${idx === categories.length - 1 ? 'text-gray-300' : 'text-slate-600 hover:bg-slate-200'}`}><ArrowDown size={18}/></button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    {categories.length === 0 && <p className="text-center text-gray-400 py-4">Chưa có nhóm nào.</p>}
+                </div>
+                <div className="p-3 border-t bg-gray-50 text-right">
+                    <button onClick={onClose} className="bg-slate-900 text-white px-6 py-2 rounded-lg text-base font-bold">Xong</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- COMPONENT TAG MANAGER (CẢI TIẾN: CHỈ 1 TAG) ---
 const TagManagerModal = ({ item, allTags, onClose, onUpdateTags }) => {
     const [newTag, setNewTag] = useState('');
@@ -296,9 +360,6 @@ const OnePageMechanic = () => {
         if (error.code === 'permission-denied') setPermissionError(true); 
     };
     
-    // Chỉ cập nhật state khi Firestore trả về dữ liệu. 
-    // Nếu chưa có (mới tạo), ta set giá trị mặc định, nhưng vẫn đánh dấu là loaded.
-    
     const uS = onSnapshot(paths.shop, (s) => { 
         setShopInfo(s.exists() ? s.data() : { name: "VĂN NGHĨA MOTO", tagline: "Chuyên sửa xe máy", address: "", phone: "", workingHours: "", adminPassword: "1234", wifi: "", wifiPass: "" }); 
     }, handleErr);
@@ -317,42 +378,29 @@ const OnePageMechanic = () => {
 
     const uB = onSnapshot(paths.bookings, (s) => { 
         if(s.exists()) setBookings(s.data().items||[]); 
-        // Khi tất cả snapshot đầu tiên đã chạy (hoặc ít nhất 1 cái quan trọng), ta coi như đã load
-        // Ở đây dùng bookings làm trigger cuối cùng là tạm ổn
         setIsDataLoaded(true); 
     }, handleErr);
     
     return () => { uS(); uSv(); uP(); uC(); uB(); };
   }, [user]);
 
-  // --- FIREBASE WRITE (QUAN TRỌNG: CHỈ LƯU KHI ĐÃ LOAD XONG) ---
+  // --- FIREBASE WRITE ---
   const saveDataToFirebase = async (collectionName, data) => {
-      // GUARD CLAUSE QUAN TRỌNG NHẤT:
-      // Nếu chưa load xong (isDataLoaded === false) HOẶC dữ liệu là null -> KHÔNG ĐƯỢC LƯU
       if (!isDataLoaded || !user || data === null) return;
-      
       setSaveStatus('saving');
       try {
           await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', collectionName), data);
           setSaveStatus('idle');
       } catch (error) {
-          console.error(`Lỗi lưu ${collectionName}:`, error);
-          if (error.code === 'permission-denied') { 
-              setPermissionError(true); 
-              setSaveStatus('permission-denied'); 
-          } else { 
-              setSaveStatus('error'); 
-          }
+          if (error.code === 'permission-denied') { setPermissionError(true); setSaveStatus('permission-denied'); } else { setSaveStatus('error'); }
       }
   };
   
-  // Debounce saves
   useEffect(() => { const t = setTimeout(() => saveDataToFirebase('shop_info', shopInfo), 2000); return () => clearTimeout(t); }, [shopInfo, isDataLoaded]);
   useEffect(() => { const t = setTimeout(() => saveDataToFirebase('services_list', { items: services }), 2000); return () => clearTimeout(t); }, [services, isDataLoaded]);
   useEffect(() => { const t = setTimeout(() => saveDataToFirebase('parts_list', { items: parts }), 2000); return () => clearTimeout(t); }, [parts, isDataLoaded]);
   useEffect(() => { const t = setTimeout(() => saveDataToFirebase('categories_list', { items: categoriesOrder }), 2000); return () => clearTimeout(t); }, [categoriesOrder, isDataLoaded]);
 
-  // Force Save
   const forceSaveAll = async () => {
       if (!user || !isDataLoaded) return;
       setSaveStatus('saving');
@@ -369,7 +417,6 @@ const OnePageMechanic = () => {
 
   useEffect(() => { if (shopInfo?.name) document.title = shopInfo.name; }, [shopInfo]);
 
-  // Loading Screen
   if (!isDataLoaded || !shopInfo || !services || !parts) {
       return (
           <div className="min-h-screen flex items-center justify-center bg-gray-50 flex-col gap-4">
@@ -379,7 +426,6 @@ const OnePageMechanic = () => {
       );
   }
 
-  // --- LOGIC HIỂN THỊ DANH MỤC ---
   const getCategories = (items) => {
       const usedTags = new Set();
       items.forEach(item => {
@@ -390,8 +436,7 @@ const OnePageMechanic = () => {
           }
       });
       const usedTagsArray = Array.from(usedTags);
-      const order = categoriesOrder || []; // Fallback nếu categoriesOrder null
-      
+      const order = categoriesOrder || [];
       return usedTagsArray.sort((a, b) => {
           const idxA = order.indexOf(a);
           const idxB = order.indexOf(b);
@@ -475,22 +520,16 @@ const OnePageMechanic = () => {
   const handleRemoveMedia = (list, setList, itemId) => { if(window.confirm('Xóa ảnh?')) setList(list.map(i => i.id === itemId ? { ...i, images: [] } : i)); };
   const moveItem = (idx, dir, list, setList) => { const n = [...list]; if (dir === 'up' && idx > 0) { [n[idx], n[idx - 1]] = [n[idx - 1], n[idx]]; } else if (dir === 'down' && idx < list.length - 1) { [n[idx], n[idx + 1]] = [n[idx + 1], n[idx]]; } setList(n); };
   
-  // Logic cập nhật tag mới (thay thế tag cũ hoàn toàn)
   const updateTagsForItem = (newTags) => {
       if (!editingTagItem) return;
       const { id, type } = editingTagItem; 
       const setList = type === 'parts' ? setParts : setServices;
       const list = type === 'parts' ? parts : services;
-      
       const updatedList = list.map(item => item.id === id ? { ...item, tags: newTags } : item);
       setList(updatedList);
-      
-      // Tự động thêm tag mới vào danh sách sắp xếp nếu chưa có
       if (newTags.length > 0 && categoriesOrder) {
            const newTag = newTags[0];
-           if (!categoriesOrder.includes(newTag)) {
-               setCategoriesOrder(prev => [...prev, newTag]);
-           }
+           if (!categoriesOrder.includes(newTag)) { setCategoriesOrder(prev => [...prev, newTag]); }
       }
   };
 
@@ -498,19 +537,13 @@ const OnePageMechanic = () => {
       if (!newName || newName === oldName) return;
       const newParts = parts.map(p => { if (p.tags && p.tags.includes(oldName)) { return { ...p, tags: p.tags.map(t => t === oldName ? newName : t) }; } return p; });
       setParts(newParts);
-      // Cập nhật cả trong danh sách thứ tự
-      if (categoriesOrder) {
-        const newOrder = categoriesOrder.map(c => c === oldName ? newName : c);
-        setCategoriesOrder(newOrder);
-      }
+      if (categoriesOrder) { const newOrder = categoriesOrder.map(c => c === oldName ? newName : c); setCategoriesOrder(newOrder); }
   };
 
   const handleReorderCategories = (index, direction) => {
       const newOrder = [...partCategories]; 
       if (direction === 'up' && index > 0) { [newOrder[index], newOrder[index - 1]] = [newOrder[index - 1], newOrder[index]]; } 
       else if (direction === 'down' && index < newOrder.length - 1) { [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]]; }
-      
-      // Merge với danh sách gốc để giữ các tag ẩn
       const baseOrder = categoriesOrder || [];
       const mergedOrder = Array.from(new Set([...newOrder, ...baseOrder]));
       setCategoriesOrder(mergedOrder);
@@ -520,7 +553,6 @@ const OnePageMechanic = () => {
   const createCalendarReminder = () => { window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent("Bảo dưỡng xe tại " + shopInfo.name)}`, '_blank'); };
   const addNewService = () => setServices([...services, { id: Date.now(), name: "Dịch vụ mới", price: "0đ", images: [], desc: "Mô tả...", variants: [] }]);
   const deleteService = (id) => { if(window.confirm("Xóa?")) setServices(services.filter(s => s.id !== id)); };
-  // Thêm mới: mặc định tag là "Khác"
   const addNewPart = () => setParts([...parts, { id: Date.now(), name: "Phụ tùng mới", price: "0đ", stock: true, images: [], tags: ["Khác"], variants: [], desc: "" }]);
   const handleLogin = () => { const p = shopInfo?.adminPassword || "1234"; if (adminPass === p) { setIsAdminMode(true); setShowLoginModal(false); setAdminPass(''); } else { alert('Sai mật khẩu!'); } };
   const handleChangePassword = () => { if(newPassword) { if(window.confirm('Đổi mật khẩu?')) { setShopInfo(p => ({...p, adminPassword: newPassword})); setNewPassword(''); alert('Đã đổi!'); } } };
