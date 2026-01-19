@@ -10,39 +10,29 @@ import {
   Menu,
   X,
   Wifi,
-  MessageCircle,
   Bell,
   Settings,
   Trash2,
   Plus,
   Upload,
-  LogOut,
   Save,
   Edit3,
   List,
-  Download,
-  FileJson,
   ImageIcon,
   ArrowUp,
   ArrowDown,
   Tag,
   Filter,
-  Lock,
-  Loader,
-  Database,
-  ShieldAlert,
-  Copy,
-  ZoomIn,
-  Grid,
   FolderOpen
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from "firebase/app";
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "firebase/auth";
-import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "firebase/firestore";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
 
 // --- FIREBASE SETUP ---
+// Sử dụng đúng cấu hình dự án của bạn
 const firebaseConfig = {
   apiKey: "AIzaSyBoGEjONZazyxz1J4FY2cXhB_x31ZLZsLE",
   authDomain: "van-nghia-moto.firebaseapp.com",
@@ -56,9 +46,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// QUAN TRỌNG: Sử dụng đúng ID kho dữ liệu cũ của bạn để không bị mất cái cũ
 const appId = 'van-nghia-moto-data'; 
 
-// --- COMPONENT EDITABLE TEXT ---
+// --- COMPONENT CHỈNH SỬA VĂN BẢN (EDITABLE TEXT) ---
 const EditableText = ({ isAdminMode, value, onChange, className, placeholder, multiline = false, style }) => {
   const safeValue = value === null || value === undefined ? '' : value;
 
@@ -67,7 +59,7 @@ const EditableText = ({ isAdminMode, value, onChange, className, placeholder, mu
     return <span className={className} style={{whiteSpace: 'pre-wrap', ...style}}>{safeValue}</span>;
   }
   
-  const inputClass = `bg-white text-gray-900 border border-orange-400 rounded px-2 py-1 outline-none shadow-sm w-full text-base block focus:ring-1 focus:ring-orange-200 transition-all ${className}`;
+  const inputClass = `bg-white text-gray-900 border border-orange-400 rounded px-2 py-1 outline-none shadow-sm w-full text-base block focus:ring-2 focus:ring-orange-200 transition-all ${className}`;
   
   if (multiline) {
     return (
@@ -95,7 +87,7 @@ const EditableText = ({ isAdminMode, value, onChange, className, placeholder, mu
   );
 };
 
-// --- COMPONENT CATEGORY MANAGER MODAL ---
+// --- COMPONENT QUẢN LÝ DANH MỤC (CATEGORY MANAGER) ---
 const CategoryManagerModal = ({ categories, onReorder, onRename, onClose }) => {
     const [editingIndex, setEditingIndex] = useState(-1);
     const [editValue, setEditValue] = useState("");
@@ -116,11 +108,11 @@ const CategoryManagerModal = ({ categories, onReorder, onRename, onClose }) => {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-zoom-in" onClick={e => e.stopPropagation()}>
                 <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
-                    <h3 className="font-bold flex items-center gap-2"><List size={20}/> Sắp xếp & Sửa tên nhóm</h3>
+                    <h3 className="font-bold flex items-center gap-2"><List size={20}/> Sắp xếp Nhóm Phụ Tùng</h3>
                     <button onClick={onClose}><X size={20}/></button>
                 </div>
                 <div className="p-4 max-h-[60vh] overflow-y-auto">
-                    <p className="text-sm text-gray-500 mb-3 italic">Bấm mũi tên để sắp xếp, bấm bút chì để đổi tên.</p>
+                    <p className="text-sm text-gray-500 mb-3 italic">Bấm mũi tên để sắp xếp thứ tự hiển thị.</p>
                     <div className="space-y-2">
                         {categories.map((cat, idx) => (
                             <div key={idx} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
@@ -149,7 +141,6 @@ const CategoryManagerModal = ({ categories, onReorder, onRename, onClose }) => {
                             </div>
                         ))}
                     </div>
-                    {categories.length === 0 && <p className="text-center text-gray-400 py-4">Chưa có nhóm nào.</p>}
                 </div>
                 <div className="p-3 border-t bg-gray-50 text-right">
                     <button onClick={onClose} className="bg-slate-900 text-white px-6 py-2 rounded-lg text-base font-bold">Xong</button>
@@ -159,14 +150,21 @@ const CategoryManagerModal = ({ categories, onReorder, onRename, onClose }) => {
     );
 };
 
-// --- COMPONENT TAG MANAGER ---
+// --- COMPONENT QUẢN LÝ TAG (TAG MANAGER) - CẢI TIẾN ---
 const TagManagerModal = ({ item, allTags, onClose, onUpdateTags }) => {
     const [newTag, setNewTag] = useState('');
     const currentTags = item.tags || [];
 
     const handleAdd = (tagToAdd) => {
         const cleanTag = tagToAdd.trim();
-        if (cleanTag && !currentTags.includes(cleanTag)) {
+        if (!cleanTag) return;
+        
+        if (currentTags.length >= 5) {
+            alert("Để giao diện đẹp, bạn chỉ nên để tối đa 5 Tag thôi nhé!");
+            return;
+        }
+
+        if (!currentTags.includes(cleanTag)) {
             onUpdateTags([...currentTags, cleanTag]);
         }
         setNewTag('');
@@ -176,63 +174,72 @@ const TagManagerModal = ({ item, allTags, onClose, onUpdateTags }) => {
         onUpdateTags(currentTags.filter(t => t !== tagToRemove));
     };
 
+    // Lọc ra các tag chưa được chọn để gợi ý
+    const availableTags = allTags.filter(t => !currentTags.includes(t) && t !== 'Tất cả' && t !== 'Khác');
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-zoom-in" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-zoom-in" onClick={(e) => e.stopPropagation()}>
                 <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
-                    <h3 className="font-bold flex items-center gap-2"><Tag size={18}/> Gắn Thẻ/Nhóm</h3>
+                    <h3 className="font-bold flex items-center gap-2"><Tag size={18}/> Gắn Nhóm/Thẻ</h3>
                     <button onClick={onClose}><X size={20}/></button>
                 </div>
-                <div className="p-4">
-                    <div className="mb-4">
-                        <p className="text-xs text-gray-500 mb-2 font-bold uppercase">Đang gắn:</p>
-                        <div className="flex flex-wrap gap-2">
+                <div className="p-5">
+                    
+                    {/* KHU VỰC TAG ĐANG CÓ */}
+                    <div className="mb-6">
+                        <p className="text-xs text-gray-500 mb-2 font-bold uppercase tracking-wider">Đang gắn ({currentTags.length}/5):</p>
+                        <div className="flex flex-wrap gap-2 min-h-[40px] p-2 bg-gray-50 rounded-lg border border-gray-200">
                             {currentTags.length > 0 ? currentTags.map(tag => (
-                                <span key={tag} className="bg-orange-100 text-orange-800 px-2 py-1 rounded-md text-sm font-bold flex items-center gap-1">
+                                <span key={tag} className="bg-orange-500 text-white pl-3 pr-2 py-1 rounded-full text-sm font-bold flex items-center gap-1 shadow-sm animate-fade-in">
                                     {tag}
-                                    <button onClick={() => handleRemove(tag)} className="hover:text-red-500"><X size={14}/></button>
+                                    <button onClick={() => handleRemove(tag)} className="hover:bg-orange-600 rounded-full p-0.5"><X size={14}/></button>
                                 </span>
-                            )) : <span className="text-sm text-gray-400 italic">Chưa có thẻ nào</span>}
+                            )) : <span className="text-sm text-gray-400 italic py-1">Chưa có nhóm nào (sản phẩm sẽ vào mục "Khác")</span>}
                         </div>
                     </div>
-                    <div className="flex gap-2 mb-4">
+
+                    {/* KHU VỰC THÊM TAG MỚI */}
+                    <div className="flex gap-2 mb-6">
                         <input 
                             type="text" 
-                            className="border p-2 rounded flex-1 text-sm" 
-                            placeholder="Nhập thẻ mới..." 
+                            className="border-2 border-gray-300 p-2 rounded-lg flex-1 text-sm focus:border-orange-500 outline-none font-medium" 
+                            placeholder="Tạo nhóm mới (VD: Honda, Vỏ xe...)" 
                             value={newTag}
                             onChange={(e) => setNewTag(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleAdd(newTag)}
                         />
-                        <button onClick={() => handleAdd(newTag)} className="bg-green-600 text-white px-3 rounded text-sm font-bold">Thêm</button>
+                        <button onClick={() => handleAdd(newTag)} className="bg-slate-800 text-white px-4 rounded-lg text-sm font-bold hover:bg-slate-700">Thêm</button>
                     </div>
+
+                    {/* KHU VỰC CHỌN TAG CÓ SẴN */}
                     <div>
-                        <p className="text-xs text-gray-500 mb-2 font-bold uppercase">Chọn nhanh từ thẻ cũ:</p>
+                        <p className="text-xs text-gray-500 mb-2 font-bold uppercase tracking-wider">Chọn nhanh nhóm có sẵn:</p>
                         <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
-                            {allTags.filter(t => !currentTags.includes(t) && t !== 'Tất cả').map(tag => (
+                            {availableTags.length > 0 ? availableTags.map(tag => (
                                 <button 
                                     key={tag} 
                                     onClick={() => handleAdd(tag)}
-                                    className="bg-gray-100 text-gray-700 px-2 py-1 rounded-md text-sm hover:bg-gray-200 border border-gray-200"
+                                    className="bg-white text-slate-600 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-100 border border-gray-300 transition-colors flex items-center gap-1"
                                 >
-                                    + {tag}
+                                    <Plus size={14}/> {tag}
                                 </button>
-                            ))}
+                            )) : <span className="text-sm text-gray-400 italic">Không còn nhóm nào khác để chọn.</span>}
                         </div>
                     </div>
                 </div>
                 <div className="p-3 border-t bg-gray-50 text-right">
-                    <button onClick={onClose} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold">Xong</button>
+                    <button onClick={onClose} className="bg-slate-900 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-slate-800">Hoàn tất</button>
                 </div>
             </div>
         </div>
     );
 };
 
-// --- COMPONENT ITEM DETAIL MODAL ---
+// --- COMPONENT CHI TIẾT SẢN PHẨM (VIEW MODAL) ---
 const ItemDetailModal = ({ item, onClose }) => {
     if (!item) return null;
-    const displayImage = (item.images && item.images.length > 0) ? item.images[0] : (item.iconUrl || item.imageFile);
+    const displayImage = (item.images && item.images.length > 0) ? item.images[0] : null;
 
     return (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={onClose}>
@@ -240,43 +247,43 @@ const ItemDetailModal = ({ item, onClose }) => {
                 className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-zoom-in flex flex-col max-h-[90vh]" 
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="relative h-64 bg-gray-50 shrink-0 flex items-center justify-center overflow-hidden border-b border-gray-100">
+                <div className="relative h-72 bg-gray-100 shrink-0 flex items-center justify-center overflow-hidden border-b border-gray-100">
                     {displayImage ? (
-                        <img src={displayImage} alt={item.name} className="w-full h-full object-contain p-4" />
+                        <img src={displayImage} alt={item.name} className="w-full h-full object-contain p-2" />
                     ) : (
                          <div className="flex flex-col items-center text-gray-400">
-                            {item.price ? <ImageIcon size={64} /> : <Wrench size={64}/>}
-                            <span className="text-sm mt-2">Không có ảnh</span>
+                            <ImageIcon size={64} />
+                            <span className="text-sm mt-2 font-medium">Không có hình ảnh</span>
                          </div>
                     )}
                     <button 
                         onClick={onClose} 
-                        className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition"
+                        className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition backdrop-blur-sm"
                     >
                         <X size={24}/>
                     </button>
                 </div>
                 <div className="p-6 overflow-y-auto">
-                    <h3 className="text-2xl font-bold text-slate-900 mb-3 leading-tight">{item.name}</h3>
+                    <h3 className="text-2xl font-black text-slate-900 mb-2 leading-tight">{item.name}</h3>
                     
                     {(!item.variants || item.variants.length === 0) && (
                         <div className="text-3xl font-extrabold text-orange-600 mb-6">{item.price}</div>
                     )}
 
                     {item.desc && item.desc.trim() !== "" && (
-                        <div className="mb-6">
-                            <h4 className="text-sm font-bold text-gray-500 uppercase mb-2">Thông tin chi tiết</h4>
+                        <div className="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                            <h4 className="text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">Mô tả chi tiết</h4>
                             <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap">{item.desc}</p>
                         </div>
                     )}
 
                     {item.variants && item.variants.length > 0 && (
                         <div className="mb-6">
-                             <h4 className="text-sm font-bold text-gray-500 uppercase mb-3">Bảng giá</h4>
-                             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                             <h4 className="text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">Bảng giá tùy chọn</h4>
+                             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
                                 {item.variants.map((v, i) => (
-                                    <div key={i} className="flex justify-between items-center border-b border-gray-100 p-3 text-base last:border-0 hover:bg-gray-50">
-                                        <span className="font-medium text-slate-800">{v.name}</span>
+                                    <div key={i} className="flex justify-between items-center p-3 text-base hover:bg-gray-50">
+                                        <span className="font-medium text-slate-700">{v.name}</span>
                                         <span className="font-bold text-orange-600">{v.price}</span>
                                     </div>
                                 ))}
@@ -285,62 +292,53 @@ const ItemDetailModal = ({ item, onClose }) => {
                     )}
                     
                     {item.stock !== undefined && (
-                        <div className={`text-lg font-bold mb-6 flex items-center justify-center gap-2 p-3 rounded-xl border ${item.stock ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
-                            {item.stock ? <CheckCircle size={24}/> : <AlertCircle size={24}/>}
+                        <div className={`text-lg font-bold mb-6 flex items-center justify-center gap-2 p-4 rounded-xl border-2 ${item.stock ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
+                            {item.stock ? <CheckCircle size={24} weight="fill"/> : <AlertCircle size={24} weight="fill"/>}
                             {item.stock ? 'SẢN PHẨM CÒN HÀNG' : 'TẠM HẾT HÀNG'}
                         </div>
                     )}
-                    <button onClick={onClose} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-lg hover:bg-slate-800 active:scale-95 transition shadow-lg">Đóng</button>
+                    <button onClick={onClose} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-slate-800 active:scale-95 transition shadow-lg">Đóng</button>
                 </div>
             </div>
         </div>
     );
 };
 
+// --- COMPONENT MAIN ---
 const OnePageMechanic = () => {
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [adminPass, setAdminPass] = useState('');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [newPassword, setNewPassword] = useState(''); 
-  const fileInputRef = useRef(null); 
   const [saveStatus, setSaveStatus] = useState('idle');
-  const [authStatus, setAuthStatus] = useState('checking');
-  const [permissionError, setPermissionError] = useState(false);
   const [viewItem, setViewItem] = useState(null);
   const [editingTagItem, setEditingTagItem] = useState(null);
   const [showCategoryManager, setShowCategoryManager] = useState(false); 
+  
+  // --- CHỐT AN TOÀN QUAN TRỌNG NHẤT ---
+  // Biến này đảm bảo Web KHÔNG BAO GIỜ tự lưu đè khi chưa tải xong dữ liệu
+  const [isDataLoaded, setIsDataLoaded] = useState(false); 
   
   // State UI
   const [activeTab, setActiveTab] = useState('services');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // --- LOCAL CACHE INITIALIZATION (TẢI NHANH TỨC THÌ) ---
-  const [shopInfo, setShopInfo] = useState(() => {
-      const saved = localStorage.getItem('cache_shop_info');
-      return saved ? JSON.parse(saved) : { name: "", tagline: "", address: "", phone: "", workingHours: "", adminPassword: "1234", wifi: "", wifiPass: "" };
-  });
-
-  const [services, setServices] = useState(() => {
-      const saved = localStorage.getItem('cache_services');
-      return saved ? JSON.parse(saved) : [];
-  });
-
-  const [parts, setParts] = useState(() => {
-      const saved = localStorage.getItem('cache_parts');
-      return saved ? JSON.parse(saved) : [];
-  });
-
-  const [categoriesOrder, setCategoriesOrder] = useState(() => {
-      const saved = localStorage.getItem('cache_categories');
-      return saved ? JSON.parse(saved) : [];
-  });
-
+  // Initial State (Mặc định rỗng để chờ tải từ Firebase)
+  const [shopInfo, setShopInfo] = useState({ name: "Tên Tiệm", tagline: "", address: "", phone: "", workingHours: "", adminPassword: "1234", wifi: "", wifiPass: "" });
+  const [services, setServices] = useState([]);
+  const [parts, setParts] = useState([]);
+  const [categoriesOrder, setCategoriesOrder] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [user, setUser] = useState(null);
-  const [selectedTag, setSelectedTag] = useState('Tất cả');
 
-  // --- FIREBASE AUTH & SYNC ---
-  useEffect(() => { const initAuth = async () => { try { await signInAnonymously(auth); setAuthStatus('logged-in'); } catch (error) { console.error(error); setAuthStatus('error'); } }; initAuth(); const u = onAuthStateChanged(auth, setUser); return () => u(); }, []);
+  // --- 1. KẾT NỐI FIREBASE & TẢI DỮ LIỆU ---
+  useEffect(() => { 
+      const initAuth = async () => { 
+          try { await signInAnonymously(auth); } catch (error) { console.error(error); } 
+      }; 
+      initAuth(); 
+      return onAuthStateChanged(auth, setUser); 
+  }, []);
   
   useEffect(() => {
     if (!user) return;
@@ -351,66 +349,31 @@ const OnePageMechanic = () => {
         categories: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list'),
         bookings: doc(db, 'artifacts', appId, 'public', 'data', 'content', 'bookings_list')
     };
-    const handleErr = (error) => { if (error.code === 'permission-denied') setPermissionError(true); };
-    
-    // FETCH AND CACHE
+
+    // Lắng nghe dữ liệu
     const uS = onSnapshot(paths.shop, (s) => { 
-        if(s.exists()) {
-            const data = s.data();
-            setShopInfo(prev => ({...prev, ...data})); 
-            localStorage.setItem('cache_shop_info', JSON.stringify(data));
-        }
-    }, handleErr);
+        if(s.exists()) { setShopInfo(prev => ({...prev, ...s.data()})); }
+        // Khi tải xong thông tin Shop (quan trọng nhất), mở chốt an toàn
+        setIsDataLoaded(true); 
+    });
     
-    const uSv = onSnapshot(paths.services, (s) => { 
-        if(s.exists()) { 
-            const d = s.data().items||[]; 
-            setServices(d); 
-            localStorage.setItem('cache_services', JSON.stringify(d));
-        } 
-    }, handleErr);
-    
-    const uP = onSnapshot(paths.parts, (s) => { 
-        if(s.exists()) { 
-            const d = s.data().items||[]; 
-            setParts(d); 
-            localStorage.setItem('cache_parts', JSON.stringify(d));
-        } 
-    }, handleErr);
-
-    const uC = onSnapshot(paths.categories, (s) => { 
-        if(s.exists()) {
-            const d = s.data().items||[];
-            setCategoriesOrder(d);
-            localStorage.setItem('cache_categories', JSON.stringify(d));
-        }
-    }, handleErr);
-
-    const uB = onSnapshot(paths.bookings, (s) => { if(s.exists()) setBookings(s.data().items||[]); }, handleErr);
+    const uSv = onSnapshot(paths.services, (s) => { if(s.exists()) setServices(s.data().items||[]); });
+    const uP = onSnapshot(paths.parts, (s) => { if(s.exists()) setParts(s.data().items||[]); });
+    const uC = onSnapshot(paths.categories, (s) => { if(s.exists()) setCategoriesOrder(s.data().items||[]); });
+    const uB = onSnapshot(paths.bookings, (s) => { if(s.exists()) setBookings(s.data().items||[]); });
     
     return () => { uS(); uSv(); uP(); uC(); uB(); };
   }, [user]);
 
-  const forceSaveAll = async () => {
-      if (!user) return;
-      setSaveStatus('saving');
-      try {
-          await Promise.all([
-              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'), shopInfo),
-              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'), { items: services }),
-              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'), { items: parts }),
-              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list'), { items: categoriesOrder })
-          ]);
-          setSaveStatus('idle'); setIsAdminMode(false); alert("✅ Đã lưu dữ liệu!");
-      } catch (error) { setSaveStatus('error'); alert(`❌ Lỗi lưu: ${error.message}`); }
-  };
+  // --- 2. TỰ ĐỘNG LƯU (AUTO-SAVE) VỚI CƠ CHẾ BẢO VỆ ---
+  // Chỉ lưu khi (Có User) VÀ (Đã tải xong dữ liệu cũ - isDataLoaded === true)
   
-  // Debounce saves
-  useEffect(() => { if (!shopInfo) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'), shopInfo), 2000); return () => clearTimeout(t); }, [shopInfo, user]);
-  useEffect(() => { if (!services) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'), { items: services }), 2000); return () => clearTimeout(t); }, [services, user]);
-  useEffect(() => { if (!parts) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'), { items: parts }), 2000); return () => clearTimeout(t); }, [parts, user]);
-  useEffect(() => { if (!categoriesOrder) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list'), { items: categoriesOrder }), 2000); return () => clearTimeout(t); }, [categoriesOrder, user]);
+  useEffect(() => { if (!user || !isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'), shopInfo), 2000); return () => clearTimeout(t); }, [shopInfo, user, isDataLoaded]);
+  useEffect(() => { if (!user || !isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'), { items: services }), 2000); return () => clearTimeout(t); }, [services, user, isDataLoaded]);
+  useEffect(() => { if (!user || !isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'), { items: parts }), 2000); return () => clearTimeout(t); }, [parts, user, isDataLoaded]);
+  useEffect(() => { if (!user || !isDataLoaded) return; const t = setTimeout(() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list'), { items: categoriesOrder }), 2000); return () => clearTimeout(t); }, [categoriesOrder, user, isDataLoaded]);
 
+  // --- LOGIC XỬ LÝ DỮ LIỆU ---
   useEffect(() => { if (shopInfo?.name) document.title = shopInfo.name; }, [shopInfo]);
 
   const getCategories = (items) => {
@@ -436,6 +399,7 @@ const OnePageMechanic = () => {
   const getAllUniqueTags = () => {
       const all = new Set();
       parts.forEach(p => p.tags && p.tags.forEach(t => all.add(t)));
+      services.forEach(s => s.tags && s.tags.forEach(t => all.add(t)));
       return Array.from(all);
   };
 
@@ -455,7 +419,6 @@ const OnePageMechanic = () => {
             const compressed = canvas.toDataURL('image/jpeg', 0.8);
             const updated = list.map(i => i.id === itemId ? { ...i, images: [compressed] } : i);
             setList(updated);
-            // Quan trọng: Reset value để cho phép chọn lại cùng 1 file
             e.target.value = '';
         };
         img.src = event.target.result;
@@ -476,7 +439,6 @@ const OnePageMechanic = () => {
                   if(w>h){if(w>MAX){h*=MAX/w;w=MAX}}else{if(h>MAX){w*=MAX/h;h=MAX}}
                   canvas.width = w; canvas.height = h; ctx.drawImage(img, 0, 0, w, h);
                   setShopInfo(p => ({...p, logoUrl: canvas.toDataURL('image/jpeg', 0.8)}));
-                  // Reset input
                   e.target.value = '';
               }
               img.src = ev.target.result;
@@ -485,7 +447,6 @@ const OnePageMechanic = () => {
       }
   }
 
-  // Hàm xử lý riêng cho QR (object đơn)
   const handleQRUpload = (e) => {
       const file = e.target.files[0];
       if(file) {
@@ -507,7 +468,13 @@ const OnePageMechanic = () => {
   }
 
   const handleRemoveMedia = (list, setList, itemId) => { if(window.confirm('Xóa ảnh?')) setList(list.map(i => i.id === itemId ? { ...i, images: [] } : i)); };
-  const moveItem = (idx, dir, list, setList) => { const n = [...list]; if (dir === 'up' && idx > 0) { [n[idx], n[idx - 1]] = [n[idx - 1], n[idx]]; } else if (dir === 'down' && idx < list.length - 1) { [n[idx], n[idx + 1]] = [n[idx + 1], n[idx]]; } setList(n); };
+  
+  const moveItem = (idx, dir, list, setList) => { 
+      const n = [...list]; 
+      if (dir === 'up' && idx > 0) { [n[idx], n[idx - 1]] = [n[idx - 1], n[idx]]; } 
+      else if (dir === 'down' && idx < list.length - 1) { [n[idx], n[idx + 1]] = [n[idx + 1], n[idx]]; } 
+      setList(n); 
+  };
   
   const updateTagsForItem = (newTags) => {
       if (!editingTagItem) return;
@@ -517,7 +484,7 @@ const OnePageMechanic = () => {
       const updatedList = list.map(item => item.id === id ? { ...item, tags: newTags } : item);
       setList(updatedList);
       
-      // Auto add new tags to order list
+      // Tự động thêm tag mới vào danh sách sắp xếp nếu chưa có
       newTags.forEach(t => { if (!categoriesOrder.includes(t)) { setCategoriesOrder(prev => [...prev, t]); } });
   };
 
@@ -537,13 +504,26 @@ const OnePageMechanic = () => {
       setCategoriesOrder(mergedOrder);
   };
 
-  const deleteBooking = (id) => { if(window.confirm("Xóa?")) setBookings(bookings.filter(b => b.id !== id)); };
-  const createCalendarReminder = () => { window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent("Bảo dưỡng xe tại " + shopInfo.name)}`, '_blank'); };
   const addNewService = () => setServices([...services, { id: Date.now(), name: "Dịch vụ mới", price: "0đ", images: [], desc: "Mô tả...", variants: [] }]);
-  const deleteService = (id) => { if(window.confirm("Xóa?")) setServices(services.filter(s => s.id !== id)); };
   const addNewPart = () => setParts([...parts, { id: Date.now(), name: "Phụ tùng mới", price: "0đ", stock: true, images: [], tags: ["Khác"], variants: [], desc: "" }]);
+  
   const handleLogin = () => { const p = shopInfo?.adminPassword || "1234"; if (adminPass === p) { setIsAdminMode(true); setShowLoginModal(false); setAdminPass(''); } else { alert('Sai mật khẩu!'); } };
   const handleChangePassword = () => { if(newPassword) { if(window.confirm('Đổi mật khẩu?')) { setShopInfo(p => ({...p, adminPassword: newPassword})); setNewPassword(''); alert('Đã đổi!'); } } };
+  
+  // Hàm lưu thủ công (Nút Lưu & Thoát)
+  const forceSaveAll = async () => {
+      if (!user) return;
+      setSaveStatus('saving');
+      try {
+          await Promise.all([
+              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'shop_info'), shopInfo),
+              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'services_list'), { items: services }),
+              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'parts_list'), { items: parts }),
+              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'content', 'categories_list'), { items: categoriesOrder })
+          ]);
+          setSaveStatus('idle'); setIsAdminMode(false); alert("✅ Đã lưu dữ liệu thành công!");
+      } catch (error) { setSaveStatus('error'); alert(`❌ Lỗi lưu: ${error.message}`); }
+  };
 
   // --- RENDER ITEM CARD ---
   const renderItemCard = (item, idx, list, setList, type = 'services') => {
@@ -564,7 +544,7 @@ const OnePageMechanic = () => {
             </div>
         )}
         
-        {/* Cột ảnh bên trái - NHỎ GỌN DẠNG ICON */}
+        {/* Cột ảnh bên trái */}
         <div className="w-24 h-24 bg-white shrink-0 flex items-center justify-center relative border border-gray-200 rounded-lg group/icon overflow-hidden">
                 {(item.images && item.images.length > 0) ? (
                     <img src={item.images[0]} alt="icon" className="w-full h-full object-cover" />
@@ -587,7 +567,6 @@ const OnePageMechanic = () => {
                     <EditableText isAdminMode={isAdminMode} value={item.name} onChange={(val) => { const newList = [...list]; newList[idx].name = val; setList(newList); }} className="font-bold w-full"/>
                 </h4>
                 
-                {/* GIÁ THÔNG MINH */}
                 {!hasVariants && (
                     <div className="text-orange-600 font-extrabold text-xl mb-1">
                         <EditableText isAdminMode={isAdminMode} value={item.price} onChange={(val) => { const newList = [...list]; newList[idx].price = val; setList(newList); }}/>
@@ -605,13 +584,11 @@ const OnePageMechanic = () => {
                     <div className="text-sm text-gray-500 font-medium mb-1 bg-gray-100 px-2 py-0.5 rounded inline-block">{item.variants.length} loại giá</div>
                 )}
 
-                {/* Mô tả ngắn */}
                 <div className={`text-sm text-gray-500 mb-1 ${isAdminMode ? '' : 'line-clamp-2'}`}>
                     <EditableText isAdminMode={isAdminMode} value={item.desc} onChange={(val) => { const newList = [...list]; newList[idx].desc = val; setList(newList); }} multiline={isAdminMode} placeholder="Mô tả..."/>
                 </div>
             </div>
 
-            {/* PHẦN DƯỚI: TRẠNG THÁI & ADMIN TOOLS */}
             <div className="mt-auto w-full">
                 {item.stock !== undefined && (
                     isAdminMode ? (
@@ -620,7 +597,7 @@ const OnePageMechanic = () => {
                                 <input type="checkbox" checked={item.stock} onChange={(e) => { const newList = [...list]; newList[idx].stock = e.target.checked; setList(newList); }} className="w-5 h-5"/>
                                 {item.stock ? "HIỆN: CÒN" : "HIỆN: HẾT"}
                             </label>
-                             <button onClick={(e) => {e.stopPropagation(); setEditingTagItem({ id: item.id, type, tags: item.tags })}} className="text-xs bg-blue-100 text-blue-700 px-3 py-2 rounded-lg hover:bg-blue-200 font-bold w-full text-left flex items-center gap-1"><Tag size={12}/> Gắn Thẻ</button>
+                             <button onClick={(e) => {e.stopPropagation(); setEditingTagItem({ id: item.id, type, tags: item.tags })}} className="text-xs bg-blue-100 text-blue-700 px-3 py-2 rounded-lg hover:bg-blue-200 font-bold w-full text-left flex items-center gap-1"><Tag size={12}/> Gắn Nhóm/Thẻ</button>
                         </div>
                     ) : (
                         <div className={`font-black text-sm uppercase px-2 py-0.5 rounded inline-block ${item.stock ? 'text-green-700 bg-green-50 border border-green-200' : 'text-red-600 bg-red-50 border border-red-200'}`}>
@@ -629,7 +606,6 @@ const OnePageMechanic = () => {
                     )
                 )}
 
-                {/* Sửa biến thể - Admin */}
                 {isAdminMode && (
                     <div className="mt-2 space-y-2">
                         {item.variants?.map((variant, vIdx) => (
@@ -652,10 +628,9 @@ const OnePageMechanic = () => {
   return (
     <div className={`min-h-screen bg-gray-50 text-gray-900 font-sans pb-24 md:pb-0 relative text-base md:text-lg`}>
       
-      {/* MODAL & ALERTS */}
+      {/* MODALS */}
       <ItemDetailModal item={viewItem} onClose={() => setViewItem(null)} />
       
-      {/* MODAL QUẢN LÝ TAG */}
       {editingTagItem && (
           <TagManagerModal 
             item={editingTagItem} 
@@ -665,7 +640,6 @@ const OnePageMechanic = () => {
           />
       )}
       
-      {/* MODAL QUẢN LÝ DANH MỤC */}
       {showCategoryManager && (
           <CategoryManagerModal 
             categories={partCategories}
@@ -675,11 +649,8 @@ const OnePageMechanic = () => {
           />
       )}
 
-      {permissionError && <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/80"><div className="bg-white p-6 rounded-xl"><h2 className="text-red-600 font-bold">LỖI QUYỀN FIREBASE</h2><p>Vui lòng mở quyền read/write trong Firestore Rules.</p><button onClick={() => window.location.reload()} className="mt-4 bg-red-600 text-white px-4 py-2 rounded">Tải lại</button></div></div>}
-
       {/* HEADER */}
       <header className="bg-slate-900 text-white sticky top-0 z-40 shadow-lg">
-        {/* GIẢM PADDING HEADER CHO GỌN: py-3 */}
         <div className="w-full px-4 py-3 flex justify-between items-center">
           <div className="flex items-center space-x-3 flex-1">
             <div className="relative group shrink-0">
@@ -688,7 +659,11 @@ const OnePageMechanic = () => {
             </div>
             <div className="flex-1 max-w-md ml-2 overflow-hidden">
                 <div className="font-bold text-xl leading-tight truncate"><EditableText isAdminMode={isAdminMode} value={shopInfo?.name} onChange={(val) => setShopInfo({...shopInfo, name: val})} className="font-bold"/></div>
-                <div className="text-sm text-gray-400 hidden md:block truncate"><EditableText isAdminMode={isAdminMode} value={shopInfo?.tagline} onChange={(val) => setShopInfo({...shopInfo, tagline: val})}/></div>
+                
+                {/* DÒNG SLOGAN CÓ THỂ CHỈNH SỬA */}
+                <div className="text-sm text-orange-300 font-medium truncate mt-1">
+                    <EditableText isAdminMode={isAdminMode} value={shopInfo?.tagline} onChange={(val) => setShopInfo({...shopInfo, tagline: val})} placeholder="Nhập câu slogan hay..."/>
+                </div>
             </div>
           </div>
           <nav className="hidden md:flex space-x-8 text-lg font-bold">
@@ -722,14 +697,12 @@ const OnePageMechanic = () => {
       <div className="bg-slate-800 text-white py-8 px-4 text-center relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
         <div className="relative z-10 w-full px-4 mx-auto">
-          <div className="text-orange-500 font-bold uppercase tracking-wider text-base mb-2">{shopInfo?.tagline}</div>
           <h2 className="text-3xl md:text-5xl font-extrabold mb-4"><EditableText isAdminMode={isAdminMode} value={shopInfo?.heroTitle} onChange={(val) => setShopInfo({...shopInfo, heroTitle: val})} className="bg-transparent text-white text-center w-full block" multiline={true} style={{color: isAdminMode ? 'black' : 'white'}}/></h2>
           <div className="text-gray-300 mb-6 max-w-4xl mx-auto"><EditableText isAdminMode={isAdminMode} value={shopInfo?.heroDesc} onChange={(val) => setShopInfo({...shopInfo, heroDesc: val})} className="bg-transparent text-gray-300 text-center w-full block text-base md:text-lg font-light" multiline={true} style={{color: isAdminMode ? 'black' : '#d1d5db'}}/></div>
         </div>
       </div>
 
       {/* MAIN CONTENT AREA */}
-      {/* TỐI ƯU PADDING: px-2 (mobile) -> px-4 (md) -> px-8 (lg) */}
       <main className="w-full px-2 md:px-4 lg:px-8 py-8 max-w-[1920px] mx-auto">
         
         {/* SERVICES TAB */}
@@ -740,14 +713,13 @@ const OnePageMechanic = () => {
                 {isAdminMode && <button onClick={addNewService} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-green-700 shadow-md text-base"><Plus size={20}/> Thêm</button>}
             </div>
             
-            {/* GRID DỊCH VỤ: TĂNG MẬT ĐỘ CHO MOBILE & DESKTOP - DÙNG GRID CHO CẢ ADMIN */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
               {services.map((service, idx) => renderItemCard(service, idx, services, setServices, 'services'))}
             </div>
           </div>
         )}
 
-        {/* PARTS TAB (MENU NHÀ HÀNG STYLE) */}
+        {/* PARTS TAB */}
         {activeTab === 'parts' && (
           <div className="animate-fade-in">
             <div className="flex justify-between items-center mb-8 border-l-8 border-orange-500 pl-4 py-1 bg-gray-50 rounded-r-lg">
@@ -770,7 +742,6 @@ const OnePageMechanic = () => {
                            <FolderOpen size={28} className="text-orange-500"/> {category}
                         </h4>
                         
-                        {/* GRID PHỤ TÙNG: DÙNG GRID CHO CẢ ADMIN */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                             {itemsInCategory.map((part) => {
                                 const idx = parts.findIndex(p => p.id === part.id);
@@ -784,21 +755,6 @@ const OnePageMechanic = () => {
         )}
       </main>
       
-      {/* REMINDER SECTION */}
-      <section className="bg-white py-10 px-4 border-t-4 border-orange-500">
-         <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-block p-4 rounded-full bg-orange-50 mb-4">
-                 <Bell className="w-10 h-10 text-orange-600 animate-pulse" />
-            </div>
-            <h2 className="text-xl md:text-3xl font-black mb-3 text-slate-900 leading-tight uppercase">
-                <EditableText isAdminMode={isAdminMode} value={shopInfo?.reminderTitle} onChange={(val) => setShopInfo({...shopInfo, reminderTitle: val})} className="text-center font-black"/>
-            </h2>
-            <div className="text-base md:text-lg text-gray-600 leading-snug mb-4 max-w-3xl mx-auto font-light">
-                <EditableText isAdminMode={isAdminMode} value={shopInfo?.reminderDesc} onChange={(val) => setShopInfo({...shopInfo, reminderDesc: val})} multiline={true} className="text-center bg-transparent p-0 border-none leading-snug"/>
-            </div>
-         </div>
-      </section>
-
       {/* FOOTER */}
       <footer className="bg-slate-900 text-slate-300 py-10 px-4 mt-0 pb-32">
         <div className="w-full px-2 md:px-8 grid md:grid-cols-2 gap-8">
